@@ -11,7 +11,7 @@ type Story = {
   profiles: {
     username: string;
     avatar_url: string;
-  };
+  } | null;
 };
 
 export default function StoryViewer() {
@@ -44,7 +44,12 @@ export default function StoryViewer() {
         .single();
 
       if (data) {
-        setStory(data);
+        const normalized: Story = {
+          ...data,
+          profiles: (data as any).profiles?.[0] || null,
+        };
+
+        setStory(normalized);
       }
 
       setLoading(false);
@@ -75,13 +80,17 @@ export default function StoryViewer() {
       {/* Top Bar */}
       <div className="flex justify-between items-center p-4">
         <div className="flex items-center gap-3">
-          <img
-            src={story.profiles.avatar_url}
-            className="w-8 h-8 rounded-full object-cover"
-          />
-          <span className="text-sm">
-            @{story.profiles.username}
-          </span>
+          {story.profiles && (
+            <>
+              <img
+                src={story.profiles.avatar_url}
+                className="w-8 h-8 rounded-full object-cover"
+              />
+              <span className="text-sm">
+                @{story.profiles.username}
+              </span>
+            </>
+          )}
         </div>
 
         <button

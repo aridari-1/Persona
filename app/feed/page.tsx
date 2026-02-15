@@ -18,20 +18,18 @@ type Post = {
   caption: string | null;
   created_at: string;
   expires_at: string | null;
-  profiles: Profile;
+  profiles: Profile | null;
 };
 
 type Comment = {
   id: string;
   content: string;
   created_at: string;
-  profiles: Profile;
+  profiles: Profile | null;
 };
 
 export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
-  const [stories, setStories] = useState<Post[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [likesMap, setLikesMap] = useState<Record<string, number>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -54,18 +52,6 @@ export default function FeedPage() {
 
       setCurrentUserId(user.id);
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("username")
-        .eq("id", user.id)
-        .single();
-
-      if (profileData) {
-        setCurrentUsername(profileData.username);
-      }
-
-      const nowISO = new Date().toISOString();
-
       const { data } = await supabase
         .from("posts")
         .select(`
@@ -86,19 +72,15 @@ export default function FeedPage() {
         .order("created_at", { ascending: false });
 
       if (data) {
-        const activeStories = data.filter(
-          (p) =>
-            p.type === "story" &&
-            p.expires_at &&
-            p.expires_at > nowISO
-        );
+        // 🔥 Normalize Supabase join (profiles comes as array)
+        const normalized: Post[] = data
+          .filter((p: any) => p.type === "post")
+          .map((item: any) => ({
+            ...item,
+            profiles: item.profiles?.[0] || null,
+          }));
 
-        const permanentPosts = data.filter(
-          (p) => p.type === "post"
-        );
-
-        setStories(activeStories);
-        setPosts(permanentPosts);
+        setPosts(normalized);
 
         const { data: likesData } = await supabase
           .from("likes")
@@ -108,7 +90,7 @@ export default function FeedPage() {
           const countMap: Record<string, number> = {};
           const likedSet = new Set<string>();
 
-          likesData.forEach((like) => {
+          likesData.forEach((like: any) => {
             countMap[like.post_id] =
               (countMap[like.post_id] || 0) + 1;
 
@@ -146,7 +128,14 @@ export default function FeedPage() {
       .eq("post_id", postId)
       .order("created_at", { ascending: true });
 
-    if (data) setComments(data);
+    if (data) {
+      const normalized: Comment[] = data.map((item: any) => ({
+        ...item,
+        profiles: item.profiles?.[0] || null,
+      }));
+
+      setComments(normalized);
+    }
   };
 
   const addComment = async () => {
@@ -172,7 +161,12 @@ export default function FeedPage() {
       .single();
 
     if (data) {
-      setComments((prev) => [...prev, data]);
+      const normalized: Comment = {
+        ...data,
+        profiles: (data as any).profiles?.[0] || null,
+      };
+
+      setComments((prev) => [...prev, normalized]);
       setNewComment("");
     }
   };
@@ -229,13 +223,17 @@ export default function FeedPage() {
           <div key={post.id} className="mb-10">
 
             <div className="flex items-center gap-3 mb-3">
-              <img
-                src={post.profiles.avatar_url}
-                className="w-9 h-9 rounded-full object-cover"
-              />
-              <span className="font-medium text-sm">
-                @{post.profiles.username}
-              </span>
+              {post.profiles && (
+                <>
+                  <img
+                    src={post.profiles.avatar_url}
+                    className="w-9 h-9 rounded-full object-cover"
+                  />
+                  <span className="font-medium text-sm">
+                    @{post.profiles.username}
+                  </span>
+                </>
+              )}
             </div>
 
             <img
@@ -268,12 +266,10 @@ export default function FeedPage() {
                 {post.caption}
               </div>
             )}
-
           </div>
         ))}
       </div>
 
-      {/* COMMENTS MODAL */}
       {activePostId && (
         <div className="fixed inset-0 bg-black/70 flex items-end z-50">
           <div className="bg-gray-900 w-full rounded-t-3xl p-6 max-h-[70vh] overflow-y-auto">
@@ -286,12 +282,16 @@ export default function FeedPage() {
 
             {comments.map((comment) => (
               <div key={comment.id} className="mb-3">
-                <span className="font-medium mr-2">
-                  @{comment.profiles.username}
-                </span>
-                <span className="text-gray-300">
-                  {comment.content}
-                </span>
+                {comment.profiles && (
+                  <>
+                    <span className="font-medium mr-2">
+                      @{comment.profiles.username}
+                    </span>
+                    <span className="text-gray-300">
+                      {comment.content}
+                    </span>
+                  </>
+                )}
               </div>
             ))}
 
