@@ -1,29 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { personaStyles } from "@/lib/personaStyles";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function CreatePersona() {
   const [archetype, setArchetype] = useState("");
   const [style, setStyle] = useState("");
   const [mood, setMood] = useState("balanced");
   const [loading, setLoading] = useState(false);
-
-  // 🔥 Ensure anonymous session exists
-  useEffect(() => {
-    const ensureSession = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        await supabase.auth.signInAnonymously();
-      }
-    };
-
-    ensureSession();
-  }, []);
 
   const handleGenerate = async () => {
     if (!archetype || !style) {
@@ -34,18 +18,11 @@ export default function CreatePersona() {
     try {
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        alert("Failed to create anonymous session.");
-        return;
-      }
-
       const res = await fetch("/api/generate-persona", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ archetype, style, mood }),
       });
 
@@ -56,22 +33,14 @@ export default function CreatePersona() {
         return;
       }
 
-      // 🔥 Save immediately to profiles
-      const { error } = await supabase.from("profiles").upsert({
-        id: user.id,
-        persona_name: `${archetype}-${Date.now()}`,
-        username: `persona_${Date.now()}`,
-        avatar_url: data.avatar_url,
-        persona_dna: data.persona_dna,
-      });
+      // 🔥 Store persona temporarily (NOT in database)
+      sessionStorage.setItem(
+        "pendingPersona",
+        JSON.stringify(data)
+      );
 
-      if (error) {
-        alert("Failed to save persona.");
-        return;
-      }
-
-      // Redirect to feed immediately
-      window.location.href = "/feed";
+      // 🔥 Go to review page
+      window.location.href = "/create-persona/review";
 
     } catch (error) {
       alert("Something went wrong.");
@@ -81,7 +50,7 @@ export default function CreatePersona() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-black text-white">
 
       <h2 className="text-4xl neon-text mb-10">
         Forge Your Identity
@@ -90,7 +59,9 @@ export default function CreatePersona() {
       <div className="glass-card p-8 rounded-2xl w-full max-w-xl space-y-6">
 
         <div>
-          <label className="block mb-2 text-gray-400">Archetype</label>
+          <label className="block mb-2 text-gray-400">
+            Archetype
+          </label>
           <input
             className="w-full p-3 bg-black border border-gray-700 rounded-lg"
             placeholder="Student Creator, Tech Founder..."
@@ -100,7 +71,9 @@ export default function CreatePersona() {
         </div>
 
         <div>
-          <label className="block mb-2 text-gray-400">Style</label>
+          <label className="block mb-2 text-gray-400">
+            Style
+          </label>
           <select
             className="w-full p-3 bg-black border border-gray-700 rounded-lg"
             value={style}
@@ -116,7 +89,9 @@ export default function CreatePersona() {
         </div>
 
         <div>
-          <label className="block mb-2 text-gray-400">Mood</label>
+          <label className="block mb-2 text-gray-400">
+            Mood
+          </label>
           <select
             className="w-full p-3 bg-black border border-gray-700 rounded-lg"
             value={mood}
