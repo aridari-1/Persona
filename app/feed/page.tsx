@@ -73,9 +73,10 @@ export default function FeedPage() {
         .order("created_at", { ascending: false });
 
       if (data) {
+        // ✅ FIXED: profiles is already an object, NOT an array
         const normalized: Post[] = data.map((item: any) => ({
           ...item,
-          profiles: item.profiles?.[0] || null,
+          profiles: item.profiles || null,
         }));
 
         const activeStories = normalized.filter(
@@ -128,40 +129,43 @@ export default function FeedPage() {
             {stories.map((story) => (
               <div key={story.id} className="text-center min-w-[70px]">
                 {story.profiles && (
-                  <>
+                  <Link href={`/profile/${story.profiles.username}`}>
                     <img
                       src={story.profiles.avatar_url}
-                      className="w-14 h-14 rounded-full object-cover mx-auto mb-1"
+                      className="w-14 h-14 rounded-full object-cover mx-auto mb-1 cursor-pointer"
                     />
                     <div className="text-xs">
                       {story.profiles.username}
                     </div>
-                  </>
+                  </Link>
                 )}
               </div>
             ))}
           </div>
         )}
 
-        {/* POSTS */}
+        {/* POSTS EMPTY STATE */}
         {posts.length === 0 && (
           <div className="text-center text-gray-500 mt-10">
             No posts yet.
           </div>
         )}
 
+        {/* POSTS */}
         {posts.map((post) => (
           <div key={post.id} className="mb-8">
             {post.profiles && (
-              <div className="flex items-center gap-3 mb-3">
-                <img
-                  src={post.profiles.avatar_url}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-                <span className="text-sm">
-                  @{post.profiles.username}
-                </span>
-              </div>
+              <Link href={`/profile/${post.profiles.username}`}>
+                <div className="flex items-center gap-3 mb-3 cursor-pointer">
+                  <img
+                    src={post.profiles.avatar_url}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                  <span className="text-sm">
+                    @{post.profiles.username}
+                  </span>
+                </div>
+              </Link>
             )}
 
             <img
