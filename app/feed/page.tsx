@@ -21,23 +21,12 @@ type Post = {
   profiles: Profile | null;
 };
 
-type Comment = {
-  id: string;
-  content: string;
-  created_at: string;
-  profiles: Profile | null;
-};
-
 export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [stories, setStories] = useState<Post[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [likesMap, setLikesMap] = useState<Record<string, number>>({});
-  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
-
-  const [activePostId, setActivePostId] = useState<string | null>(null);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [newComment, setNewComment] = useState("");
 
   useEffect(() => {
     const loadFeed = async () => {
@@ -51,6 +40,18 @@ export default function FeedPage() {
       }
 
       setCurrentUserId(user.id);
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", user.id)
+        .single();
+
+      if (profileData) {
+        setCurrentUsername(profileData.username);
+      }
+
+      const nowISO = new Date().toISOString();
 
       const { data } = await supabase
         .from("posts")
@@ -72,36 +73,24 @@ export default function FeedPage() {
         .order("created_at", { ascending: false });
 
       if (data) {
-        // 🔥 Normalize Supabase join (profiles comes as array)
-        const normalized: Post[] = data
-          .filter((p: any) => p.type === "post")
-          .map((item: any) => ({
-            ...item,
-            profiles: item.profiles?.[0] || null,
-          }));
+        const normalized: Post[] = data.map((item: any) => ({
+          ...item,
+          profiles: item.profiles?.[0] || null,
+        }));
 
-        setPosts(normalized);
+        const activeStories = normalized.filter(
+          (p) =>
+            p.type === "story" &&
+            p.expires_at &&
+            p.expires_at > nowISO
+        );
 
-        const { data: likesData } = await supabase
-          .from("likes")
-          .select("*");
+        const permanentPosts = normalized.filter(
+          (p) => p.type === "post"
+        );
 
-        if (likesData) {
-          const countMap: Record<string, number> = {};
-          const likedSet = new Set<string>();
-
-          likesData.forEach((like: any) => {
-            countMap[like.post_id] =
-              (countMap[like.post_id] || 0) + 1;
-
-            if (like.user_id === user.id) {
-              likedSet.add(like.post_id);
-            }
-          });
-
-          setLikesMap(countMap);
-          setLikedPosts(likedSet);
-        }
+        setStories(activeStories);
+        setPosts(permanentPosts);
       }
 
       setLoading(false);
@@ -109,102 +98,6 @@ export default function FeedPage() {
 
     loadFeed();
   }, []);
-
-  const openComments = async (postId: string) => {
-    setActivePostId(postId);
-
-    const { data } = await supabase
-      .from("comments")
-      .select(`
-        id,
-        content,
-        created_at,
-        profiles (
-          id,
-          username,
-          avatar_url
-        )
-      `)
-      .eq("post_id", postId)
-      .order("created_at", { ascending: true });
-
-    if (data) {
-      const normalized: Comment[] = data.map((item: any) => ({
-        ...item,
-        profiles: item.profiles?.[0] || null,
-      }));
-
-      setComments(normalized);
-    }
-  };
-
-  const addComment = async () => {
-    if (!newComment.trim() || !activePostId || !currentUserId) return;
-
-    const { data } = await supabase
-      .from("comments")
-      .insert({
-        post_id: activePostId,
-        user_id: currentUserId,
-        content: newComment,
-      })
-      .select(`
-        id,
-        content,
-        created_at,
-        profiles (
-          id,
-          username,
-          avatar_url
-        )
-      `)
-      .single();
-
-    if (data) {
-      const normalized: Comment = {
-        ...data,
-        profiles: (data as any).profiles?.[0] || null,
-      };
-
-      setComments((prev) => [...prev, normalized]);
-      setNewComment("");
-    }
-  };
-
-  const toggleLike = async (postId: string) => {
-    if (!currentUserId) return;
-
-    if (likedPosts.has(postId)) {
-      await supabase
-        .from("likes")
-        .delete()
-        .eq("user_id", currentUserId)
-        .eq("post_id", postId);
-
-      setLikedPosts((prev) => {
-        const newSet = new Set(prev);
-        newSet.delete(postId);
-        return newSet;
-      });
-
-      setLikesMap((prev) => ({
-        ...prev,
-        [postId]: Math.max((prev[postId] || 1) - 1, 0),
-      }));
-    } else {
-      await supabase.from("likes").insert({
-        user_id: currentUserId,
-        post_id: postId,
-      });
-
-      setLikedPosts((prev) => new Set(prev).add(postId));
-
-      setLikesMap((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || 0) + 1,
-      }));
-    }
-  };
 
   if (loading) {
     return (
@@ -217,52 +110,67 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen bg-black text-white pb-24">
 
-      <div className="px-4 max-w-md mx-auto">
+      {/* TOP NAV */}
+      <div className="fixed top-0 left-0 right-0 bg-black border-b border-gray-800 px-6 py-4 flex justify-between items-center z-50">
+        <h1 className="text-xl font-bold">PERSONA</h1>
+        {currentUsername && (
+          <Link href={`/profile/${currentUsername}`}>
+            👤
+          </Link>
+        )}
+      </div>
+
+      <div className="pt-20 px-4 max-w-md mx-auto">
+
+        {/* STORIES */}
+        {stories.length > 0 && (
+          <div className="flex gap-4 overflow-x-auto mb-6">
+            {stories.map((story) => (
+              <div key={story.id} className="text-center min-w-[70px]">
+                {story.profiles && (
+                  <>
+                    <img
+                      src={story.profiles.avatar_url}
+                      className="w-14 h-14 rounded-full object-cover mx-auto mb-1"
+                    />
+                    <div className="text-xs">
+                      {story.profiles.username}
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* POSTS */}
+        {posts.length === 0 && (
+          <div className="text-center text-gray-500 mt-10">
+            No posts yet.
+          </div>
+        )}
 
         {posts.map((post) => (
-          <div key={post.id} className="mb-10">
-
-            <div className="flex items-center gap-3 mb-3">
-              {post.profiles && (
-                <>
-                  <img
-                    src={post.profiles.avatar_url}
-                    className="w-9 h-9 rounded-full object-cover"
-                  />
-                  <span className="font-medium text-sm">
-                    @{post.profiles.username}
-                  </span>
-                </>
-              )}
-            </div>
+          <div key={post.id} className="mb-8">
+            {post.profiles && (
+              <div className="flex items-center gap-3 mb-3">
+                <img
+                  src={post.profiles.avatar_url}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+                <span className="text-sm">
+                  @{post.profiles.username}
+                </span>
+              </div>
+            )}
 
             <img
               src={post.media_url}
-              className="w-full rounded-xl object-cover mb-3"
+              className="w-full rounded-xl object-cover"
             />
 
-            <div className="flex items-center gap-6 mb-2 text-xl">
-              <button
-                onClick={() => toggleLike(post.id)}
-                className={
-                  likedPosts.has(post.id)
-                    ? "text-pink-500"
-                    : "text-gray-400"
-                }
-              >
-                ♥
-              </button>
-              <button onClick={() => openComments(post.id)}>
-                💬
-              </button>
-            </div>
-
-            <div className="text-sm font-medium mb-1">
-              {likesMap[post.id] || 0} likes
-            </div>
-
             {post.caption && (
-              <div className="text-sm text-gray-300 mb-1">
+              <div className="mt-2 text-sm text-gray-300">
                 {post.caption}
               </div>
             )}
@@ -270,49 +178,14 @@ export default function FeedPage() {
         ))}
       </div>
 
-      {activePostId && (
-        <div className="fixed inset-0 bg-black/70 flex items-end z-50">
-          <div className="bg-gray-900 w-full rounded-t-3xl p-6 max-h-[70vh] overflow-y-auto">
-            <div className="flex justify-between mb-4">
-              <h2 className="text-lg font-bold">Comments</h2>
-              <button onClick={() => setActivePostId(null)}>
-                ✕
-              </button>
-            </div>
-
-            {comments.map((comment) => (
-              <div key={comment.id} className="mb-3">
-                {comment.profiles && (
-                  <>
-                    <span className="font-medium mr-2">
-                      @{comment.profiles.username}
-                    </span>
-                    <span className="text-gray-300">
-                      {comment.content}
-                    </span>
-                  </>
-                )}
-              </div>
-            ))}
-
-            <div className="mt-4 flex gap-3">
-              <input
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..."
-                className="flex-1 bg-black border border-gray-700 rounded-lg px-3 py-2"
-              />
-              <button
-                onClick={addComment}
-                className="text-blue-500"
-              >
-                Post
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
+      {/* BOTTOM NAV */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around py-4">
+        <Link href="/feed">🏠</Link>
+        <Link href="/create-story">➕</Link>
+        {currentUsername && (
+          <Link href={`/profile/${currentUsername}`}>👤</Link>
+        )}
+      </div>
 
     </div>
   );
