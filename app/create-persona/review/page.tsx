@@ -1,92 +1,53 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function ReviewPersona() {
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [personaData, setPersonaData] = useState<any>(null);
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const loadProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    const stored = sessionStorage.getItem("pendingPersona");
 
-      if (!user) {
-        window.location.href = "/create-persona";
-        return;
-      }
+    if (!stored) {
+      window.location.href = "/create-persona";
+      return;
+    }
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("avatar_url, username, bio")
-        .eq("id", user.id)
-        .single();
-
-      if (data) {
-        setAvatar(data.avatar_url);
-        setUsername(data.username || "");
-        setBio(data.bio || "");
-      }
-    };
-
-    loadProfile();
+    const data = JSON.parse(stored);
+    setPersonaData(data);
+    setAvatar(data.avatar_url);
   }, []);
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!username) {
       alert("Username is required.");
       return;
     }
 
-    try {
-      setLoading(true);
+    const updated = {
+      ...personaData,
+      username,
+      bio,
+    };
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    sessionStorage.setItem("pendingPersona", JSON.stringify(updated));
 
-      if (!user) {
-        alert("User not authenticated.");
-        return;
-      }
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          username,
-          bio,
-        })
-        .eq("id", user.id);
-
-      if (error) {
-        alert(error.message);
-        return;
-      }
-
-      // 🔥 Go to feed after profile completion
-      window.location.href = "/feed";
-
-    } catch (err) {
-      alert("Something went wrong.");
-    } finally {
-      setLoading(false);
-    }
+    window.location.href = "/auth";
   };
 
   if (!avatar) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center text-white">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-black text-white">
 
       <h2 className="text-4xl neon-text mb-8">
         Complete Your Persona
@@ -116,10 +77,9 @@ export default function ReviewPersona() {
 
         <button
           onClick={handleContinue}
-          disabled={loading}
           className="neon-button px-8 py-3 rounded-xl text-black font-semibold w-full"
         >
-          {loading ? "Saving..." : "Continue"}
+          Continue to Sign Up
         </button>
 
       </div>
