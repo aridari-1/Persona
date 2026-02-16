@@ -185,6 +185,7 @@ export default function FeedPage() {
       {/* BOTTOM NAV */}
       <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around py-4">
         <Link href="/feed">🏠</Link>
+        <Link href="/search">🔍</Link>
         <Link href="/create-story">➕</Link>
         {currentUsername && (
           <Link href={`/profile/${currentUsername}`}>👤</Link>
