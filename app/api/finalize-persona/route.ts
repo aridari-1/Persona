@@ -28,7 +28,7 @@ export async function POST(req: Request) {
       }
     );
 
-    // 🔐 Get authenticated user
+    // 🔐 Validate user
     const {
       data: { user },
       error: userError,
@@ -41,13 +41,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 📦 Get persona data from request
-    const {
-      avatar_url,
-      persona_dna,
-      username,
-      bio,
-    } = await req.json();
+    const { avatar_url, persona_dna, username, bio } = await req.json();
 
     if (!avatar_url || !persona_dna || !username) {
       return NextResponse.json(
@@ -56,25 +50,11 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🚫 Prevent duplicate profile
-    const { data: existingProfile } = await supabase
+    // ✅ Use upsert instead of insert
+    const { error } = await supabase
       .from("profiles")
-      .select("id")
-      .eq("id", user.id)
-      .single();
-
-    if (existingProfile) {
-      return NextResponse.json(
-        { error: "Profile already exists" },
-        { status: 400 }
-      );
-    }
-
-    // 💾 Insert profile
-    const { error: insertError } = await supabase
-      .from("profiles")
-      .insert({
-        id: user.id, // must match auth.users.id
+      .upsert({
+        id: user.id,
         persona_name: username,
         username,
         bio: bio || "",
@@ -82,9 +62,9 @@ export async function POST(req: Request) {
         persona_dna,
       });
 
-    if (insertError) {
+    if (error) {
       return NextResponse.json(
-        { error: insertError.message },
+        { error: error.message },
         { status: 500 }
       );
     }

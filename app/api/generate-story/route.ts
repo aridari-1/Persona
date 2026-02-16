@@ -13,7 +13,10 @@ export async function POST(req: Request) {
     const { scene, type } = await req.json();
 
     if (!scene) {
-      return NextResponse.json({ error: "Scene description required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Scene description required" },
+        { status: 400 }
+      );
     }
 
     const contentType = type === "post" ? "post" : "story";
@@ -31,8 +34,13 @@ export async function POST(req: Request) {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -41,7 +49,10 @@ export async function POST(req: Request) {
       .single();
 
     if (!profile?.persona_dna) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Profile not found" },
+        { status: 404 }
+      );
     }
 
     const dna = profile.persona_dna;
@@ -49,22 +60,20 @@ export async function POST(req: Request) {
     const camera = dna.camera_lock || {};
     const faceSig = dna.face_signature || "";
 
-    // HARD LOCK recipe (same every time)
     const cameraLockText = `
 Camera + pose lock (MUST KEEP IDENTICAL):
 - framing: ${camera.framing || "head-and-shoulders portrait"}
 - angle: ${camera.angle || "straight-on"}
 - lens: ${camera.lens || "85mm"} lens, aperture ${camera.aperture || "f/1.8"}
 - expression: ${camera.expression || "neutral relaxed expression"}
-- lighting: ${camera.lighting || "soft cinematic key light, gentle fill, natural skin texture"}
-- keep hairstyle and face proportions consistent
+- lighting: ${camera.lighting || "soft cinematic key light, gentle fill"}
 `.trim();
 
     const identityLockText = `
-IDENTITY LOCK (MUST KEEP IDENTICAL PERSON):
+IDENTITY LOCK:
 ${faceSig}
 
-Also keep consistent:
+Keep consistent:
 - gender: ${identity.gender || ""}
 - skin tone: ${identity.skin_tone || ""}
 - hair: ${identity.hair || ""}
@@ -72,10 +81,9 @@ Also keep consistent:
 - face shape: ${identity.face_shape || ""}
 - distinctive feature: ${identity.distinctive_feature || ""}
 
-Do not change facial structure or proportions.
+Do not change facial structure.
 `.trim();
 
-    // Scene is the only “free variable”
     const prompt = `
 Ultra realistic photography of the same exact person.
 
@@ -83,47 +91,44 @@ ${identityLockText}
 
 ${cameraLockText}
 
-Scene request (change environment ONLY, not identity):
+Scene:
 ${scene}
 
-DSLR realism, detailed skin texture, high detail.
-Not cartoon, not illustration.
+High detail, DSLR realism.
+Not cartoon.
 `.trim();
 
     const result = await openai.images.generate({
       model: "gpt-image-1",
       prompt,
       size: "1024x1024",
-      // optional if supported:
-      // quality: "high",
     });
 
     const imageBase64 = result.data?.[0]?.b64_json;
+
     if (!imageBase64) {
-      return NextResponse.json({ error: "Image generation failed" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Image generation failed" },
+        { status: 500 }
+      );
     }
 
     const imageUrl = `data:image/png;base64,${imageBase64}`;
 
-    const insertData: any = {
-      user_id: user.id,
+    // 🔥 DO NOT SAVE HERE
+    // Only return preview data
+
+    return NextResponse.json({
+      imageUrl,
+      scene,
       type: contentType,
-      caption: scene,
-      media_url: imageUrl,
-    };
+    });
 
-    if (contentType === "story") {
-      insertData.expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    }
-
-    const { error: insertError } = await supabase.from("posts").insert(insertData);
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("GENERATION ERROR:", error);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    );
   }
 }

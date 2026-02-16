@@ -10,43 +10,52 @@ export default function CreateStoryPage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const handleGenerate = async () => {
-    if (!scene) {
-      alert("Describe your scene.");
-      return;
-    }
+ const handleGenerate = async () => {
+  if (!scene) {
+    alert("Describe your scene.");
+    return;
+  }
 
-    setLoading(true);
+  setLoading(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    if (!session) {
-      router.push("/");
-      return;
-    }
+  if (!session) {
+    router.push("/");
+    return;
+  }
 
-    const res = await fetch("/api/generate-story", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        scene,
-        type, // 🔥 this is the important part
-      }),
-    });
+  const res = await fetch("/api/generate-story", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      scene,
+      type,
+    }),
+  });
 
-    if (!res.ok) {
-      alert("Generation failed.");
-      setLoading(false);
-      return;
-    }
+  const data = await res.json();
 
-    router.push("/feed");
-  };
+  if (!res.ok || !data.imageUrl) {
+    alert("Generation failed.");
+    setLoading(false);
+    return;
+  }
+
+  // 🔥 Store temporary post
+  sessionStorage.setItem(
+    "pendingPost",
+    JSON.stringify(data)
+  );
+
+  router.push("/preview-post");
+};
+
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">

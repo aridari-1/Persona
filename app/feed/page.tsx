@@ -22,7 +22,6 @@ type Post = {
 };
 
 export default function FeedPage() {
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [stories, setStories] = useState<Post[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
@@ -38,8 +37,6 @@ export default function FeedPage() {
         window.location.href = "/";
         return;
       }
-
-      setCurrentUserId(user.id);
 
       const { data: profileData } = await supabase
         .from("profiles")
@@ -73,25 +70,23 @@ export default function FeedPage() {
         .order("created_at", { ascending: false });
 
       if (data) {
-        // ✅ FIXED: profiles is already an object, NOT an array
         const normalized: Post[] = data.map((item: any) => ({
           ...item,
           profiles: item.profiles || null,
         }));
 
-        const activeStories = normalized.filter(
-          (p) =>
-            p.type === "story" &&
-            p.expires_at &&
-            p.expires_at > nowISO
+        setStories(
+          normalized.filter(
+            (p) =>
+              p.type === "story" &&
+              p.expires_at &&
+              p.expires_at > nowISO
+          )
         );
 
-        const permanentPosts = normalized.filter(
-          (p) => p.type === "post"
+        setPosts(
+          normalized.filter((p) => p.type === "post")
         );
-
-        setStories(activeStories);
-        setPosts(permanentPosts);
       }
 
       setLoading(false);
@@ -102,39 +97,40 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-gray-400">
+      <div className="h-dvh flex items-center justify-center bg-black text-gray-400">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="h-dvh flex flex-col bg-black text-white">
 
-      {/* TOP NAV */}
-      <div className="fixed top-0 left-0 right-0 bg-black border-b border-gray-800 px-6 py-4 flex justify-between items-center z-50">
-        <h1 className="text-xl font-bold">PERSONA</h1>
+      {/* 🔝 TOP NAV */}
+      <div className="sticky top-0 bg-black border-b border-gray-800 px-4 py-4 flex justify-between items-center z-40">
+        <h1 className="text-xl font-bold tracking-wide">PERSONA</h1>
         {currentUsername && (
-          <Link href={`/profile/${currentUsername}`}>
+          <Link href={`/profile/${currentUsername}`} className="text-xl">
             👤
           </Link>
         )}
       </div>
 
-      <div className="pt-20 px-4 max-w-md mx-auto">
+      {/* 🔥 SCROLLABLE CONTENT */}
+      <div className="flex-1 overflow-y-auto px-4 pb-24">
 
         {/* STORIES */}
         {stories.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto mb-6">
+          <div className="flex gap-4 overflow-x-auto py-4 mb-4 scrollbar-hide">
             {stories.map((story) => (
               <div key={story.id} className="text-center min-w-[70px]">
                 {story.profiles && (
                   <Link href={`/profile/${story.profiles.username}`}>
                     <img
                       src={story.profiles.avatar_url}
-                      className="w-14 h-14 rounded-full object-cover mx-auto mb-1 cursor-pointer"
+                      className="w-14 h-14 rounded-full object-cover mx-auto mb-1 border-2 border-pink-500"
                     />
-                    <div className="text-xs">
+                    <div className="text-xs truncate w-16">
                       {story.profiles.username}
                     </div>
                   </Link>
@@ -144,9 +140,9 @@ export default function FeedPage() {
           </div>
         )}
 
-        {/* POSTS EMPTY STATE */}
+        {/* EMPTY STATE */}
         {posts.length === 0 && (
-          <div className="text-center text-gray-500 mt-10">
+          <div className="text-center text-gray-500 mt-20">
             No posts yet.
           </div>
         )}
@@ -154,14 +150,15 @@ export default function FeedPage() {
         {/* POSTS */}
         {posts.map((post) => (
           <div key={post.id} className="mb-8">
+
             {post.profiles && (
               <Link href={`/profile/${post.profiles.username}`}>
-                <div className="flex items-center gap-3 mb-3 cursor-pointer">
+                <div className="flex items-center gap-3 mb-3">
                   <img
                     src={post.profiles.avatar_url}
-                    className="w-8 h-8 rounded-full object-cover"
+                    className="w-9 h-9 rounded-full object-cover"
                   />
-                  <span className="text-sm">
+                  <span className="text-sm font-medium">
                     @{post.profiles.username}
                   </span>
                 </div>
@@ -182,13 +179,13 @@ export default function FeedPage() {
         ))}
       </div>
 
-      {/* BOTTOM NAV */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around py-4">
-        <Link href="/feed">🏠</Link>
-        <Link href="/search">🔍</Link>
-        <Link href="/create-story">➕</Link>
+      {/* 🔻 BOTTOM NAV */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around items-center py-4 text-xl z-50">
+        <Link href="/feed" className="px-4">🏠</Link>
+        <Link href="/search" className="px-4">🔍</Link>
+        <Link href="/create-story" className="px-4 text-2xl">➕</Link>
         {currentUsername && (
-          <Link href={`/profile/${currentUsername}`}>👤</Link>
+          <Link href={`/profile/${currentUsername}`} className="px-4">👤</Link>
         )}
       </div>
 
