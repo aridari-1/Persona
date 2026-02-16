@@ -38,6 +38,7 @@ export default function FeedPage() {
         return;
       }
 
+      // Get my username
       const { data: profileData } = await supabase
         .from("profiles")
         .select("username")
@@ -48,8 +49,21 @@ export default function FeedPage() {
         setCurrentUsername(profileData.username);
       }
 
+      // 🔥 Get people I follow
+      const { data: followingData } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", user.id);
+
+      const followingIds =
+        followingData?.map((f) => f.following_id) || [];
+
+      // Include myself
+      const allowedUserIds = [...followingIds, user.id];
+
       const nowISO = new Date().toISOString();
 
+      // 🔥 Fetch posts ONLY from allowed users
       const { data } = await supabase
         .from("posts")
         .select(`
@@ -66,6 +80,7 @@ export default function FeedPage() {
             avatar_url
           )
         `)
+        .in("user_id", allowedUserIds)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false });
 
@@ -106,7 +121,7 @@ export default function FeedPage() {
   return (
     <div className="h-dvh flex flex-col bg-black text-white">
 
-      {/* 🔝 TOP NAV */}
+      {/* TOP NAV */}
       <div className="sticky top-0 bg-black border-b border-gray-800 px-4 py-4 flex justify-between items-center z-40">
         <h1 className="text-xl font-bold tracking-wide">PERSONA</h1>
         {currentUsername && (
@@ -116,12 +131,10 @@ export default function FeedPage() {
         )}
       </div>
 
-      {/* 🔥 SCROLLABLE CONTENT */}
       <div className="flex-1 overflow-y-auto px-4 pb-24">
 
-        {/* STORIES */}
         {stories.length > 0 && (
-          <div className="flex gap-4 overflow-x-auto py-4 mb-4 scrollbar-hide">
+          <div className="flex gap-4 overflow-x-auto py-4 mb-4">
             {stories.map((story) => (
               <div key={story.id} className="text-center min-w-[70px]">
                 {story.profiles && (
@@ -140,14 +153,12 @@ export default function FeedPage() {
           </div>
         )}
 
-        {/* EMPTY STATE */}
         {posts.length === 0 && (
           <div className="text-center text-gray-500 mt-20">
             No posts yet.
           </div>
         )}
 
-        {/* POSTS */}
         {posts.map((post) => (
           <div key={post.id} className="mb-8">
 
@@ -179,7 +190,7 @@ export default function FeedPage() {
         ))}
       </div>
 
-      {/* 🔻 BOTTOM NAV */}
+      {/* BOTTOM NAV */}
       <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around items-center py-4 text-xl z-50">
         <Link href="/feed" className="px-4">🏠</Link>
         <Link href="/search" className="px-4">🔍</Link>
