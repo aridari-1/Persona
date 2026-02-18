@@ -17,7 +17,6 @@ export default function AuthPage() {
     try {
       setLoading(true);
 
-      // 🔥 Create real auth user
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -29,7 +28,6 @@ export default function AuthPage() {
         return;
       }
 
-      // 🔥 Get session
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -39,7 +37,6 @@ export default function AuthPage() {
         return;
       }
 
-      // 🔥 Get pending persona from sessionStorage
       const pending = sessionStorage.getItem("pendingPersona");
 
       if (!pending) {
@@ -49,7 +46,6 @@ export default function AuthPage() {
 
       const personaData = JSON.parse(pending);
 
-      // 🔥 Finalize persona in DB
       const res = await fetch("/api/finalize-persona", {
         method: "POST",
         headers: {
@@ -76,36 +72,67 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-black text-white">
-      <h2 className="text-4xl neon-text mb-8">
-        Secure Your Persona
-      </h2>
+    <div className="min-h-[100dvh] flex items-center justify-center bg-black px-5 py-10">
 
-      <div className="glass-card p-8 rounded-2xl w-full max-w-md space-y-4">
+      <div className="w-full max-w-md">
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 bg-black border border-gray-700 rounded-lg"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
+        {/* Logo / Title */}
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-bold tracking-wider bg-gradient-to-r from-purple-400 via-pink-500 to-blue-500 bg-clip-text text-transparent">
+            PERSONA
+          </h1>
+          <p className="text-gray-400 text-sm mt-3">
+            Secure your identity and enter your world
+          </p>
+        </div>
 
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 bg-black border border-gray-700 rounded-lg"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        {/* Card */}
+        <div className="bg-gradient-to-b from-gray-900 to-black border border-gray-800 rounded-2xl p-6 shadow-2xl">
 
-        <button
-          onClick={handleSignUp}
-          disabled={loading}
-          className="neon-button w-full py-3 rounded-xl text-black font-semibold disabled:opacity-50"
-        >
-          {loading ? "Creating Account..." : "Sign Up & Enter Persona"}
-        </button>
+          <div className="space-y-4">
+
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-sm focus:outline-none focus:border-purple-500 transition"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                placeholder="Create a strong password"
+                className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-sm focus:outline-none focus:border-purple-500 transition"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            <button
+              onClick={handleSignUp}
+              disabled={loading}
+              className="w-full mt-4 py-3 rounded-xl font-semibold text-black bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 shadow-lg hover:scale-[1.02] transition disabled:opacity-50"
+            >
+              {loading ? "Creating Account..." : "Sign Up & Enter Persona"}
+            </button>
+
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="text-center text-xs text-gray-500 mt-6">
+          By continuing, you agree to Persona's Terms & Privacy.
+        </div>
 
       </div>
     </div>

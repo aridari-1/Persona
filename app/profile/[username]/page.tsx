@@ -115,7 +115,7 @@ export default function PublicProfilePage() {
 
   if (loading) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-black text-gray-400">
+      <div className="h-dvh flex items-center justify-center bg-black text-gray-400 text-sm">
         Loading...
       </div>
     );
@@ -123,7 +123,7 @@ export default function PublicProfilePage() {
 
   if (!profile) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-black text-gray-500">
+      <div className="h-dvh flex items-center justify-center bg-black text-gray-500 text-sm">
         Profile not found.
       </div>
     );
@@ -132,29 +132,31 @@ export default function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-black text-white">
 
-      {/* 🔝 TOP BAR */}
+      {/* TOP BAR */}
       <div className="sticky top-0 bg-black border-b border-gray-800 px-4 py-4 flex items-center gap-4 z-50">
-        <Link href="/feed" className="text-lg hover:opacity-70 transition">
+        <Link href="/feed" className="text-lg active:opacity-50">
           ←
         </Link>
-        <span className="font-semibold text-sm tracking-wide">
+        <span className="font-semibold text-sm tracking-wide truncate">
           @{profile.username}
         </span>
       </div>
 
-      <div className="px-5 pt-8 max-w-4xl mx-auto">
+      <div className="px-4 pt-6 max-w-3xl mx-auto">
 
-        {/* HEADER SECTION */}
-        <div className="flex items-center justify-between mb-6">
+        {/* MOBILE-FIRST HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-6">
 
-          {/* Smaller Avatar */}
-          <img
-            src={profile.avatar_url}
-            className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border border-gray-700"
-          />
+          {/* Avatar */}
+          <div className="flex justify-center sm:justify-start">
+            <img
+              src={profile.avatar_url}
+              className="w-24 h-24 rounded-full object-cover border border-gray-700"
+            />
+          </div>
 
           {/* Stats */}
-          <div className="flex flex-1 justify-around text-center">
+          <div className="flex justify-around sm:flex-1 text-center">
 
             <div>
               <div className="font-semibold text-lg">
@@ -186,12 +188,12 @@ export default function PublicProfilePage() {
           </div>
         </div>
 
-        {/* BIO SECTION */}
-        <div className="mb-6">
-          <div className="font-semibold text-sm">
+        {/* BIO */}
+        <div className="mb-6 text-sm">
+          <div className="font-semibold mb-1">
             @{profile.username}
           </div>
-          <div className="text-gray-400 text-sm mt-1 leading-relaxed">
+          <div className="text-gray-400 leading-relaxed">
             {profile.bio}
           </div>
         </div>
@@ -203,7 +205,7 @@ export default function PublicProfilePage() {
             className={`w-full py-2 rounded-md text-sm font-medium transition mb-6 ${
               isFollowing
                 ? "bg-gray-800 text-white border border-gray-700"
-                : "bg-white text-black hover:bg-gray-200"
+                : "bg-white text-black active:scale-95"
             }`}
           >
             {isFollowing ? "Following" : "Follow"}
@@ -211,10 +213,10 @@ export default function PublicProfilePage() {
         )}
 
         {/* Divider */}
-        <div className="border-t border-gray-800 mb-4"></div>
+        <div className="border-t border-gray-800 mb-3"></div>
 
-        {/* POSTS GRID (Instagram Style) */}
-        <div className="grid grid-cols-3 gap-[2px] md:gap-2">
+        {/* POSTS GRID */}
+        <div className="grid grid-cols-3 gap-[2px]">
 
           {posts.map((post) => (
             <div
@@ -223,7 +225,7 @@ export default function PublicProfilePage() {
             >
               <img
                 src={post.media_url}
-                className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                className="w-full h-full object-cover"
               />
             </div>
           ))}

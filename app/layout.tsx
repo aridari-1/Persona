@@ -27,15 +27,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white overflow-x-hidden`}
       >
-        <TopNav />
+        {/* 📱 Mobile Container */}
+        <div className="max-w-md mx-auto min-h-dvh flex flex-col relative">
 
-        <main className="pt-16 pb-16 min-h-screen">
-          {children}
-        </main>
+          {/* 🔝 Top Navigation */}
+          <TopNav />
 
-        <BottomNav />
+          {/* 📄 Main Scrollable Content */}
+          <main className="flex-1 overflow-y-auto pt-16 pb-20">
+            {children}
+          </main>
+
+          {/* 🔻 Bottom Navigation */}
+          <BottomNav />
+
+        </div>
       </body>
     </html>
   );

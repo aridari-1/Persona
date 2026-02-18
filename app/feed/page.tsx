@@ -31,7 +31,6 @@ export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [rows, setRows] = useState<FeedRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [likes, setLikes] = useState<Record<string, number>>({});
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
@@ -42,9 +41,6 @@ export default function FeedPage() {
 
   useEffect(() => {
     const load = async () => {
-      setLoading(true);
-      setErrMsg(null);
-
       const { data: auth } = await supabase.auth.getUser();
       const user = auth.user;
 
@@ -63,14 +59,8 @@ export default function FeedPage() {
 
       setCurrentUsername(meProfile?.username ?? null);
 
-      const { data, error } = await supabase.rpc("get_feed_posts");
-
-      if (error) {
-        setErrMsg(error.message);
-        setRows([]);
-      } else {
-        setRows((data as FeedRow[]) ?? []);
-      }
+      const { data } = await supabase.rpc("get_feed_posts");
+      setRows((data as FeedRow[]) ?? []);
 
       const { data: likesData } = await supabase.from("likes").select("*");
 
@@ -211,34 +201,24 @@ export default function FeedPage() {
 
   if (loading) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-black text-gray-400 text-sm">
+      <div className="min-h-dvh flex items-center justify-center bg-black text-gray-400 text-sm">
         Loading your world...
       </div>
     );
   }
 
   return (
-    <div className="h-dvh flex flex-col bg-black text-white">
-
-      {/* TOP NAV */}
-      <div className="sticky top-0 bg-black border-b border-gray-800 px-5 py-4 flex justify-between items-center z-40">
-        <h1 className="text-xl font-bold tracking-wide">PERSONA</h1>
-        {currentUsername && (
-          <Link href={`/profile/${currentUsername}`} className="text-xl">
-            👤
-          </Link>
-        )}
-      </div>
+    <div className="min-h-dvh w-full bg-black text-white overflow-x-hidden">
 
       {/* CONTENT */}
-      <div className="flex-1 overflow-y-auto pb-28">
+      <div className="pb-24">
 
         {posts.map((p) => (
           <div key={p.id} className="border-b border-gray-900">
 
             {/* HEADER */}
             <Link href={`/profile/${p.username}`}>
-              <div className="flex items-center gap-3 px-4 py-3">
+              <div className="flex items-center gap-3 px-4 py-3 active:opacity-70">
                 <img
                   src={p.avatar_url}
                   className="w-8 h-8 rounded-full object-cover"
@@ -251,11 +231,13 @@ export default function FeedPage() {
             </Link>
 
             {/* IMAGE */}
-            <img
-              src={p.media_url}
-              className="w-full object-cover"
-              alt=""
-            />
+            <div className="w-full bg-black">
+              <img
+                src={p.media_url}
+                className="w-full h-auto object-cover"
+                alt=""
+              />
+            </div>
 
             {/* ACTIONS */}
             <div className="px-4 py-3">
@@ -263,14 +245,19 @@ export default function FeedPage() {
               <div className="flex items-center gap-6 text-2xl mb-2">
                 <button
                   onClick={() => toggleLike(p.id)}
-                  className={likedPosts.has(p.id)
-                    ? "text-red-500"
-                    : "text-white"}
+                  className={`active:scale-90 transition ${
+                    likedPosts.has(p.id)
+                      ? "text-red-500"
+                      : "text-white"
+                  }`}
                 >
                   ♥
                 </button>
 
-                <button onClick={() => openComments(p.id)}>
+                <button
+                  onClick={() => openComments(p.id)}
+                  className="active:scale-90 transition"
+                >
                   💬
                 </button>
               </div>
@@ -286,7 +273,7 @@ export default function FeedPage() {
               )}
 
               {p.caption && (
-                <div className="text-sm text-gray-400">
+                <div className="text-sm text-gray-400 break-words">
                   {p.caption}
                 </div>
               )}
@@ -297,33 +284,41 @@ export default function FeedPage() {
 
       {/* COMMENT MODAL */}
       {activePost && (
-        <div className="fixed inset-0 bg-black/90 flex items-end z-50">
-          <div className="bg-black w-full rounded-t-3xl p-5 max-h-[75vh] overflow-y-auto border-t border-gray-800">
+        <div className="fixed inset-0 bg-black/95 flex items-end z-50">
 
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Comments</h2>
-              <button onClick={() => setActivePost(null)}>✕</button>
+          <div className="w-full bg-black rounded-t-3xl border-t border-gray-800 flex flex-col max-h-[85vh]">
+
+            <div className="flex justify-between items-center px-5 py-4 border-b border-gray-900">
+              <h2 className="text-base font-semibold">Comments</h2>
+              <button
+                onClick={() => setActivePost(null)}
+                className="text-xl"
+              >
+                ✕
+              </button>
             </div>
 
-            {comments.map((c) => (
-              <div key={c.id} className="flex gap-3 mb-4">
-                <img
-                  src={c.avatar_url}
-                  className="w-7 h-7 rounded-full object-cover"
-                  alt=""
-                />
-                <div>
-                  <span className="text-sm font-semibold mr-2">
-                    {c.username}
-                  </span>
-                  <span className="text-sm text-gray-300">
-                    {c.content}
-                  </span>
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              {comments.map((c) => (
+                <div key={c.id} className="flex gap-3 mb-4">
+                  <img
+                    src={c.avatar_url}
+                    className="w-7 h-7 rounded-full object-cover"
+                    alt=""
+                  />
+                  <div className="text-sm">
+                    <span className="font-semibold mr-2">
+                      {c.username}
+                    </span>
+                    <span className="text-gray-300 break-words">
+                      {c.content}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
 
-            <div className="mt-4 flex gap-3">
+            <div className="border-t border-gray-900 px-4 py-3 flex gap-3">
               <input
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
@@ -341,16 +336,6 @@ export default function FeedPage() {
           </div>
         </div>
       )}
-
-      {/* BOTTOM NAV */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 flex justify-around items-center py-4 text-xl z-50">
-        <Link href="/feed">🏠</Link>
-        <Link href="/search">🔍</Link>
-        <Link href="/create-story">➕</Link>
-        {currentUsername && (
-          <Link href={`/profile/${currentUsername}`}>👤</Link>
-        )}
-      </div>
     </div>
   );
 }

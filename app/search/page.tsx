@@ -39,48 +39,65 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white px-6 py-10">
+    <div className="h-dvh flex flex-col bg-black text-white">
 
-      <h2 className="text-2xl font-bold mb-6">Search Users</h2>
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-40 bg-black border-b border-gray-800 px-4 pt-6 pb-4">
+        <h2 className="text-lg font-semibold tracking-wide mb-4">
+          Search
+        </h2>
 
-      {/* Search Input */}
-      <input
-        type="text"
-        placeholder="Search username..."
-        value={query}
-        onChange={(e) => handleSearch(e.target.value)}
-        className="w-full p-3 bg-black border border-gray-700 rounded-xl mb-6"
-      />
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search username..."
+            value={query}
+            onChange={(e) => handleSearch(e.target.value)}
+            className="w-full bg-gray-900 border border-gray-700 rounded-full px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
+          />
+        </div>
+      </div>
 
-      {loading && (
-        <div className="text-gray-500">Searching...</div>
-      )}
+      {/* Scrollable Results */}
+      <div className="flex-1 overflow-y-auto pb-28">
 
-      {/* Results */}
-      <div className="space-y-4">
-        {results.map((user) => (
-          <Link
-            key={user.id}
-            href={`/profile/${user.username}`}
-            className="flex items-center gap-4 p-3 rounded-xl hover:bg-gray-900 transition"
-          >
-            <img
-              src={user.avatar_url}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-            <span className="font-medium">
-              @{user.username}
-            </span>
-          </Link>
-        ))}
+        {loading && (
+          <div className="px-4 py-6 text-gray-500 text-sm">
+            Searching...
+          </div>
+        )}
+
+        <div className="divide-y divide-gray-900">
+          {results.map((user) => (
+            <Link
+              key={user.id}
+              href={`/profile/${user.username}`}
+              className="flex items-center gap-3 px-4 py-4 active:bg-gray-900 transition"
+            >
+              <img
+                src={user.avatar_url}
+                className="w-10 h-10 rounded-full object-cover"
+                alt=""
+              />
+
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold">
+                  {user.username}
+                </span>
+                <span className="text-xs text-gray-500">
+                  @{user.username}
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
 
         {!loading && query && results.length === 0 && (
-          <div className="text-gray-500">
+          <div className="px-4 py-10 text-center text-gray-500 text-sm">
             No users found.
           </div>
         )}
       </div>
-
     </div>
   );
 }
