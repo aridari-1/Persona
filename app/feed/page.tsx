@@ -13,7 +13,6 @@ type FeedRow = {
   title: string | null;
   created_at: string;
   expires_at: string | null;
-
   profile_id: string;
   username: string;
   avatar_url: string;
@@ -98,12 +97,8 @@ export default function FeedPage() {
     load();
   }, []);
 
-  const { stories, posts } = useMemo(() => {
-    const nowISO = new Date().toISOString();
+  const { posts } = useMemo(() => {
     return {
-      stories: rows.filter(
-        (r) => r.type === "story" && r.expires_at && r.expires_at > nowISO
-      ),
       posts: rows.filter((r) => r.type === "post"),
     };
   }, [rows]);
@@ -158,13 +153,20 @@ export default function FeedPage() {
       .order("created_at", { ascending: true });
 
     if (data) {
-      const normalized = data.map((c: any) => ({
-        id: c.id,
-        content: c.content,
-        created_at: c.created_at,
-        username: c.profiles?.username,
-        avatar_url: c.profiles?.avatar_url,
-      }));
+      const normalized: Comment[] = data.map((c: any) => {
+        const profile = Array.isArray(c.profiles)
+          ? c.profiles[0]
+          : c.profiles;
+
+        return {
+          id: c.id,
+          content: c.content,
+          created_at: c.created_at,
+          username: profile?.username ?? "user",
+          avatar_url: profile?.avatar_url ?? "",
+        };
+      });
+
       setComments(normalized);
     }
   };
@@ -188,16 +190,21 @@ export default function FeedPage() {
       .single();
 
     if (data) {
+      const profile = Array.isArray(data.profiles)
+        ? data.profiles[0]
+        : data.profiles;
+
       setComments((prev) => [
         ...prev,
         {
           id: data.id,
           content: data.content,
           created_at: data.created_at,
-          username: data.profiles?.username,
-          avatar_url: data.profiles?.avatar_url,
+          username: profile?.username ?? "user",
+          avatar_url: profile?.avatar_url ?? "",
         },
       ]);
+
       setNewComment("");
     }
   };
@@ -250,17 +257,15 @@ export default function FeedPage() {
               alt=""
             />
 
-            {/* LIKE + COMMENT BAR */}
+            {/* ACTIONS */}
             <div className="px-4 py-3">
 
               <div className="flex items-center gap-6 text-2xl mb-2">
                 <button
                   onClick={() => toggleLike(p.id)}
-                  className={
-                    likedPosts.has(p.id)
-                      ? "text-red-500"
-                      : "text-white"
-                  }
+                  className={likedPosts.has(p.id)
+                    ? "text-red-500"
+                    : "text-white"}
                 >
                   ♥
                 </button>
@@ -285,7 +290,6 @@ export default function FeedPage() {
                   {p.caption}
                 </div>
               )}
-
             </div>
           </div>
         ))}
@@ -293,8 +297,7 @@ export default function FeedPage() {
 
       {/* COMMENT MODAL */}
       {activePost && (
-        <div className="fixed inset-0 bg-black/80 flex items-end z-50">
-
+        <div className="fixed inset-0 bg-black/90 flex items-end z-50">
           <div className="bg-black w-full rounded-t-3xl p-5 max-h-[75vh] overflow-y-auto border-t border-gray-800">
 
             <div className="flex justify-between items-center mb-4">
@@ -320,7 +323,6 @@ export default function FeedPage() {
               </div>
             ))}
 
-            {/* INPUT */}
             <div className="mt-4 flex gap-3">
               <input
                 value={newComment}
