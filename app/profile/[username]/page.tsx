@@ -115,7 +115,7 @@ export default function PublicProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-gray-400">
+      <div className="h-dvh flex items-center justify-center bg-black text-gray-400">
         Loading...
       </div>
     );
@@ -123,7 +123,7 @@ export default function PublicProfilePage() {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black text-gray-500">
+      <div className="h-dvh flex items-center justify-center bg-black text-gray-500">
         Profile not found.
       </div>
     );
@@ -132,88 +132,94 @@ export default function PublicProfilePage() {
   return (
     <div className="min-h-screen bg-black text-white">
 
-      {/* TOP BAR */}
-      <div className="fixed top-0 left-0 right-0 bg-black border-b border-gray-800 px-6 py-4 flex items-center gap-4 z-50">
-        <Link href="/feed" className="text-xl">
+      {/* 🔝 TOP BAR */}
+      <div className="sticky top-0 bg-black border-b border-gray-800 px-4 py-4 flex items-center gap-4 z-50">
+        <Link href="/feed" className="text-lg hover:opacity-70 transition">
           ←
         </Link>
-        <span className="font-semibold">@{profile.username}</span>
+        <span className="font-semibold text-sm tracking-wide">
+          @{profile.username}
+        </span>
       </div>
 
-      <div className="pt-24 px-6 max-w-4xl mx-auto">
+      <div className="px-5 pt-8 max-w-4xl mx-auto">
 
-        {/* HEADER */}
-        <div className="flex flex-col md:flex-row items-center md:items-start gap-8 mb-10">
+        {/* HEADER SECTION */}
+        <div className="flex items-center justify-between mb-6">
 
+          {/* Smaller Avatar */}
           <img
             src={profile.avatar_url}
-            className="w-36 h-36 rounded-full object-cover"
+            className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border border-gray-700"
           />
 
-          <div className="flex-1 text-center md:text-left">
+          {/* Stats */}
+          <div className="flex flex-1 justify-around text-center">
 
-            {/* STATS */}
-            <div className="flex justify-center md:justify-start gap-10 mb-6">
-
-              <div className="text-center">
-                <div className="font-semibold text-lg">
-                  {posts.length}
-                </div>
-                <div className="text-gray-500 text-sm">
-                  Posts
-                </div>
+            <div>
+              <div className="font-semibold text-lg">
+                {posts.length}
               </div>
-
-              <div className="text-center">
-                <div className="font-semibold text-lg">
-                  {followersCount}
-                </div>
-                <div className="text-gray-500 text-sm">
-                  Followers
-                </div>
+              <div className="text-gray-500 text-xs">
+                Posts
               </div>
-
-              <div className="text-center">
-                <div className="font-semibold text-lg">
-                  {followingCount}
-                </div>
-                <div className="text-gray-500 text-sm">
-                  Following
-                </div>
-              </div>
-
             </div>
 
-            {/* BIO */}
-            <div className="mb-6 text-gray-300 text-sm max-w-md">
-              {profile.bio}
+            <div>
+              <div className="font-semibold text-lg">
+                {followersCount}
+              </div>
+              <div className="text-gray-500 text-xs">
+                Followers
+              </div>
             </div>
 
-            {/* FOLLOW BUTTON */}
-            {viewerId && viewerId !== profile.id && (
-              <button
-                onClick={toggleFollow}
-                className={`px-8 py-2 rounded-full font-medium transition ${
-                  isFollowing
-                    ? "bg-gray-800 text-white border border-gray-700"
-                    : "bg-gradient-to-r from-purple-500 via-pink-500 to-blue-500 text-black"
-                }`}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
-            )}
+            <div>
+              <div className="font-semibold text-lg">
+                {followingCount}
+              </div>
+              <div className="text-gray-500 text-xs">
+                Following
+              </div>
+            </div>
 
           </div>
-
         </div>
 
-        {/* POSTS GRID */}
-        <div className="grid grid-cols-3 gap-1 md:gap-3">
+        {/* BIO SECTION */}
+        <div className="mb-6">
+          <div className="font-semibold text-sm">
+            @{profile.username}
+          </div>
+          <div className="text-gray-400 text-sm mt-1 leading-relaxed">
+            {profile.bio}
+          </div>
+        </div>
+
+        {/* FOLLOW BUTTON */}
+        {viewerId && viewerId !== profile.id && (
+          <button
+            onClick={toggleFollow}
+            className={`w-full py-2 rounded-md text-sm font-medium transition mb-6 ${
+              isFollowing
+                ? "bg-gray-800 text-white border border-gray-700"
+                : "bg-white text-black hover:bg-gray-200"
+            }`}
+          >
+            {isFollowing ? "Following" : "Follow"}
+          </button>
+        )}
+
+        {/* Divider */}
+        <div className="border-t border-gray-800 mb-4"></div>
+
+        {/* POSTS GRID (Instagram Style) */}
+        <div className="grid grid-cols-3 gap-[2px] md:gap-2">
 
           {posts.map((post) => (
             <div
               key={post.id}
-              className="aspect-square overflow-hidden"
+              className="aspect-square overflow-hidden bg-gray-900"
             >
               <img
                 src={post.media_url}
@@ -225,7 +231,6 @@ export default function PublicProfilePage() {
         </div>
 
       </div>
-
     </div>
   );
 }
