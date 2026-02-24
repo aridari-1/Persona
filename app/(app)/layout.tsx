@@ -1,5 +1,5 @@
-import TopNav from "@/components/TopNav";
-import BottomNav from "@/components/BottomNav";
+import TopBar from "@/components/layout/TopBar";
+import BottomNav from "@/components/layout/BottomNav";
 import Gate from "./gate";
 
 export default function AppLayout({
@@ -15,10 +15,10 @@ export default function AppLayout({
 
         {/* Fixed Top */}
         <div className="fixed top-0 w-full max-w-md z-50">
-          <TopNav />
+          <TopBar />
         </div>
 
-        {/* Scrollable Content (window scroll only) */}
+        {/* Scrollable Content */}
         <div className="pt-16 pb-20">
           <Gate>{children}</Gate>
         </div>
