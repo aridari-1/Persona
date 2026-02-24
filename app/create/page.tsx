@@ -186,12 +186,11 @@ export default function CreatePage() {
             </button>
 
             <button
-              onClick={handlePublish}
-              disabled={state === "publishing"}
-              className="flex-1 bg-white text-black py-3 rounded-xl font-semibold"
-            >
-              {state === "publishing" ? "Publishing..." : "Publish"}
-            </button>
+  onClick={handlePublish}
+  className="flex-1 bg-white text-black py-3 rounded-xl font-semibold"
+>
+  Publish
+</button>
           </div>
 
         </div>
