@@ -1,49 +1,58 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import TopNav from "@/components/TopNav";
-import BottomNav from "@/components/BottomNav";
+"use client";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-export const metadata: Metadata = {
-  title: "Persona",
-  description: "AI Generated Identity Social Network",
-};
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import BottomNav from "@/components/layout/BottomNav";
+import TopBar from "@/components/layout/TopBar";
+import { usePathname } from "next/navigation";
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [checkedAuth, setCheckedAuth] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const publicRoutes = ["/", "/login", "/signup"];
+
+      if (!session && !publicRoutes.includes(pathname)) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setCheckedAuth(true);
+    };
+
+    checkUser();
+  }, [pathname]);
+
+  const hideNav =
+    pathname === "/" || pathname === "/login" || pathname === "/signup";
+
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white overflow-x-hidden`}
-      >
-        {/* 📱 Mobile Container */}
-        <div className="max-w-md mx-auto min-h-dvh flex flex-col relative">
+    <html>
+      <body className="bg-black text-white min-h-screen flex flex-col">
 
-          {/* 🔝 Top Navigation */}
-          <TopNav />
+        {/* Show loader INSIDE body, not replacing html */}
+        {!checkedAuth ? (
+          <div className="flex-1 flex items-center justify-center">
+            Loading...
+          </div>
+        ) : (
+          <>
+            {!hideNav && <TopBar />}
+            <main className="flex-1 pb-16">{children}</main>
+            {!hideNav && <BottomNav />}
+          </>
+        )}
 
-          {/* 📄 Main Scrollable Content */}
-          <main className="flex-1 overflow-y-auto pt-16 pb-20">
-            {children}
-          </main>
-
-          {/* 🔻 Bottom Navigation */}
-          <BottomNav />
-
-        </div>
       </body>
     </html>
   );

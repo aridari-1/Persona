@@ -2,236 +2,296 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useParams } from "next/navigation";
 
-type Profile = {
+interface Profile {
   id: string;
   username: string;
-  bio: string;
-  avatar_url: string;
-};
+  display_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+}
 
-type Post = {
+interface Post {
   id: string;
-  media_url: string;
-};
+  post_media: {
+    output_path: string;
+  }[];
+}
 
-export default function PublicProfilePage() {
+export default function ProfilePage() {
+  const router = useRouter();
   const params = useParams();
-  const username = params.username as string;
+  const usernameParam = (params?.username as string) || "";
 
-  const [viewerId, setViewerId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [followersCount, setFollowersCount] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [hasActiveStory, setHasActiveStory] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // NEW: follow system states
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+
   useEffect(() => {
-    const loadProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    fetchProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usernameParam]);
 
-      if (user) setViewerId(user.id);
+  const fetchProfile = async () => {
+    setLoading(true);
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("username", username)
-        .single();
+    const { data: session } = await supabase.auth.getSession();
+    const user = session.session?.user;
 
-      if (!profileData) {
-        setLoading(false);
-        return;
-      }
+    if (!user) {
+      router.push("/login");
+      return;
+    }
 
-      setProfile(profileData);
+    // If route is /profile/me, show current user profile like before
+    const viewingMe = usernameParam === "me" || !usernameParam;
 
-      const { data: postsData } = await supabase
-        .from("posts")
-        .select("id, media_url")
-        .eq("user_id", profileData.id)
-        .eq("is_deleted", false)
-        .order("created_at", { ascending: false });
+    // Fetch profile (by username when not "me", else by id)
+    const profileQuery = supabase.from("profiles").select("*");
 
-      if (postsData) setPosts(postsData);
+    const { data: profileData } = viewingMe
+      ? await profileQuery.eq("id", user.id).single()
+      : await profileQuery.eq("username", usernameParam).single();
 
-      const { count: followers } = await supabase
-        .from("follows")
-        .select("*", { count: "exact", head: true })
-        .eq("following_id", profileData.id);
-
-      setFollowersCount(followers || 0);
-
-      const { count: following } = await supabase
-        .from("follows")
-        .select("*", { count: "exact", head: true })
-        .eq("follower_id", profileData.id);
-
-      setFollowingCount(following || 0);
-
-      if (user && user.id !== profileData.id) {
-        const { data: followData } = await supabase
-          .from("follows")
-          .select("*")
-          .eq("follower_id", user.id)
-          .eq("following_id", profileData.id)
-          .single();
-
-        if (followData) setIsFollowing(true);
-      }
-
+    if (!profileData) {
+      setProfile(null);
+      setPosts([]);
+      setHasActiveStory(false);
+      setFollowersCount(0);
+      setFollowingCount(0);
+      setIsFollowing(false);
+      setIsOwnProfile(false);
       setLoading(false);
-    };
+      return;
+    }
 
-    loadProfile();
-  }, [username]);
+    setProfile(profileData);
 
-  const toggleFollow = async () => {
-    if (!viewerId || !profile) return;
+    const own = profileData.id === user.id;
+    setIsOwnProfile(own);
+
+    // Fetch posts for the viewed profile
+    const { data: postData } = await supabase
+      .from("posts")
+      .select(`
+        id,
+        post_media (
+          output_path
+        )
+      `)
+      .eq("user_id", profileData.id)
+      .order("created_at", { ascending: false });
+
+    setPosts(postData || []);
+
+    // Check if active story exists for viewed profile
+    const { data: storyData } = await supabase
+      .from("stories")
+      .select("id")
+      .eq("user_id", profileData.id)
+      .gt("expires_at", new Date().toISOString());
+
+    setHasActiveStory((storyData?.length || 0) > 0);
+
+    // NEW: follower + following counts
+    const [{ count: followers }, { count: following }] = await Promise.all([
+      supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("following_id", profileData.id),
+      supabase
+        .from("follows")
+        .select("*", { count: "exact", head: true })
+        .eq("follower_id", profileData.id),
+    ]);
+
+    setFollowersCount(followers || 0);
+    setFollowingCount(following || 0);
+
+    // NEW: check if current user follows this profile (only if not own)
+    if (!own) {
+      const { data: followRow } = await supabase
+        .from("follows")
+        .select("follower_id, following_id")
+        .eq("follower_id", user.id)
+        .eq("following_id", profileData.id)
+        .maybeSingle();
+
+      setIsFollowing(!!followRow);
+    } else {
+      setIsFollowing(false);
+    }
+
+    setLoading(false);
+  };
+
+  // NEW: follow/unfollow actions
+  const handleFollowToggle = async () => {
+    const { data: session } = await supabase.auth.getSession();
+    const user = session.session?.user;
+    if (!user || !profile) return;
+
+    // Prevent self-follow
+    if (user.id === profile.id) return;
 
     if (isFollowing) {
-      await supabase
+      const { error } = await supabase
         .from("follows")
         .delete()
-        .eq("follower_id", viewerId)
+        .eq("follower_id", user.id)
         .eq("following_id", profile.id);
 
-      setIsFollowing(false);
-      setFollowersCount((prev) => prev - 1);
+      if (!error) {
+        setIsFollowing(false);
+        setFollowersCount((c) => Math.max(c - 1, 0));
+      }
     } else {
-      await supabase.from("follows").insert({
-        follower_id: viewerId,
+      const { error } = await supabase.from("follows").insert({
+        follower_id: user.id,
         following_id: profile.id,
       });
 
-      setIsFollowing(true);
-      setFollowersCount((prev) => prev + 1);
+      if (!error) {
+        setIsFollowing(true);
+        setFollowersCount((c) => c + 1);
+      }
     }
   };
 
   if (loading) {
     return (
-      <div className="h-dvh flex items-center justify-center bg-black text-gray-400 text-sm">
+      <div className="h-screen flex items-center justify-center text-gray-400">
         Loading...
       </div>
     );
   }
 
-  if (!profile) {
-    return (
-      <div className="h-dvh flex items-center justify-center bg-black text-gray-500 text-sm">
-        Profile not found.
-      </div>
-    );
-  }
+  if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="pb-28 px-4 max-w-2xl mx-auto">
 
-      {/* TOP BAR */}
-      <div className="sticky top-0 bg-black border-b border-gray-800 px-4 py-4 flex items-center gap-4 z-50">
-        <Link href="/feed" className="text-lg active:opacity-50">
-          ←
-        </Link>
-        <span className="font-semibold text-sm tracking-wide truncate">
-          @{profile.username}
-        </span>
+      {/* HEADER */}
+      <div className="flex items-center justify-between mt-8">
+
+        {/* Avatar with Story Ring */}
+        <div className="relative">
+
+          <div
+            className={`p-[3px] rounded-full ${
+              hasActiveStory
+                ? "bg-gradient-to-tr from-purple-500 via-pink-500 to-orange-400"
+                : "bg-gray-800"
+            }`}
+          >
+            <div className="w-28 h-28 rounded-full overflow-hidden bg-black">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  className="w-full h-full object-cover"
+                  alt=""
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-sm text-gray-500">
+                  No Avatar
+                </div>
+              )}
+            </div>
+          </div>
+
+          {hasActiveStory && (
+            <div className="absolute -bottom-1 -right-1 bg-purple-600 text-xs px-2 py-1 rounded-full">
+              Story
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="flex space-x-8 text-center">
+          <div>
+            <p className="text-lg font-semibold">{posts.length}</p>
+            <p className="text-gray-400 text-sm">Posts</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold">{followersCount}</p>
+            <p className="text-gray-400 text-sm">Followers</p>
+          </div>
+          <div>
+            <p className="text-lg font-semibold">{followingCount}</p>
+            <p className="text-gray-400 text-sm">Following</p>
+          </div>
+        </div>
       </div>
 
-      <div className="px-4 pt-6 max-w-3xl mx-auto">
+      {/* NAME + BIO */}
+      <div className="mt-6 space-y-2">
+        <h1 className="text-xl font-bold">{profile.display_name}</h1>
+        <p className="text-gray-400">@{profile.username}</p>
 
-        {/* MOBILE-FIRST HEADER */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-6">
-
-          {/* Avatar */}
-          <div className="flex justify-center sm:justify-start">
-            <img
-              src={profile.avatar_url}
-              className="w-24 h-24 rounded-full object-cover border border-gray-700"
-            />
-          </div>
-
-          {/* Stats */}
-          <div className="flex justify-around sm:flex-1 text-center">
-
-            <div>
-              <div className="font-semibold text-lg">
-                {posts.length}
-              </div>
-              <div className="text-gray-500 text-xs">
-                Posts
-              </div>
-            </div>
-
-            <div>
-              <div className="font-semibold text-lg">
-                {followersCount}
-              </div>
-              <div className="text-gray-500 text-xs">
-                Followers
-              </div>
-            </div>
-
-            <div>
-              <div className="font-semibold text-lg">
-                {followingCount}
-              </div>
-              <div className="text-gray-500 text-xs">
-                Following
-              </div>
-            </div>
-
-          </div>
-        </div>
-
-        {/* BIO */}
-        <div className="mb-6 text-sm">
-          <div className="font-semibold mb-1">
-            @{profile.username}
-          </div>
-          <div className="text-gray-400 leading-relaxed">
+        {profile.bio && (
+          <p className="text-sm text-gray-300 leading-relaxed">
             {profile.bio}
-          </div>
-        </div>
+          </p>
+        )}
 
-        {/* FOLLOW BUTTON */}
-        {viewerId && viewerId !== profile.id && (
+        {/* UPDATED: keep Edit Profile for own profile, Follow button for others */}
+        {isOwnProfile ? (
           <button
-            onClick={toggleFollow}
-            className={`w-full py-2 rounded-md text-sm font-medium transition mb-6 ${
+            onClick={() => router.push("/profile/edit")}
+            className="mt-4 border border-gray-700 w-full py-2 rounded-lg text-sm hover:bg-gray-900 transition"
+          >
+            Edit Profile
+          </button>
+        ) : (
+          <button
+            onClick={handleFollowToggle}
+            className={`mt-4 w-full py-2 rounded-lg text-sm transition ${
               isFollowing
-                ? "bg-gray-800 text-white border border-gray-700"
-                : "bg-white text-black active:scale-95"
+                ? "border border-gray-700 hover:bg-gray-900"
+                : "neon-button text-black font-semibold hover:scale-[1.01]"
             }`}
           >
             {isFollowing ? "Following" : "Follow"}
           </button>
         )}
+      </div>
 
-        {/* Divider */}
-        <div className="border-t border-gray-800 mb-3"></div>
+      {/* POSTS GRID */}
+      <div className="border-t border-gray-800 mt-10 pt-6">
 
-        {/* POSTS GRID */}
-        <div className="grid grid-cols-3 gap-[2px]">
-
-          {posts.map((post) => (
-            <div
-              key={post.id}
-              className="aspect-square overflow-hidden bg-gray-900"
-            >
-              <img
-                src={post.media_url}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          ))}
-
+        <div className="flex justify-center mb-4 text-gray-400 text-sm">
+          Posts
         </div>
 
+        <div className="grid grid-cols-3 gap-[2px]">
+          {posts.map((post) => {
+            const media = post.post_media?.[0];
+            if (!media) return null;
+
+            const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-posts/${media.output_path}`;
+
+            return (
+              <div
+                key={post.id}
+                className="aspect-square overflow-hidden bg-black"
+              >
+                <img
+                  src={imageUrl}
+                  className="w-full h-full object-cover hover:scale-105 transition duration-300"
+                  alt=""
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -4,12 +4,12 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleSignup = async () => {
     if (!email || !password) {
       alert("Enter email and password.");
       return;
@@ -17,7 +17,7 @@ export default function LoginPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6">
 
         <h1 className="text-3xl font-bold text-center neon-text">
-          Welcome Back
+          Join Persona
         </h1>
 
         <div className="space-y-4">
@@ -59,19 +59,19 @@ export default function LoginPage() {
           />
 
           <button
-            onClick={handleLogin}
+            onClick={handleSignup}
             disabled={loading}
             className="neon-button w-full py-3 rounded-xl text-black font-semibold disabled:opacity-50"
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? "Creating Account..." : "Sign Up"}
           </button>
 
         </div>
 
         <div className="text-center text-gray-400 text-sm">
-          Don’t have an account?{" "}
-          <Link href="/signup" className="text-white hover:underline">
-            Sign up
+          Already have an account?{" "}
+          <Link href="/login" className="text-white hover:underline">
+            Login
           </Link>
         </div>
 

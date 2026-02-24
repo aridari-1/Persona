@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { personaStyles } from "@/lib/personaStyles";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CreatePersona() {
   const [archetype, setArchetype] = useState("");
@@ -18,31 +19,40 @@ export default function CreatePersona() {
     try {
       setLoading(true);
 
+      // 🔥 GET SESSION FIRST
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        alert("You must be logged in.");
+        return;
+      }
+
       const res = await fetch("/api/generate-persona", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`, // 🔥 CRITICAL
         },
         body: JSON.stringify({ archetype, style, mood }),
       });
 
-      const data = await res.json();
-
-      if (!data.avatar_url) {
-        alert("Generation failed.");
+      if (!res.ok) {
+        const err = await res.json();
+        console.error(err);
+        alert(err.error || "Generation failed.");
         return;
       }
 
-      // 🔥 Store persona temporarily (NOT in database)
-      sessionStorage.setItem(
-        "pendingPersona",
-        JSON.stringify(data)
-      );
+      const data = await res.json();
 
-      // 🔥 Go to review page
+      sessionStorage.setItem("pendingPersona", JSON.stringify(data));
+
       window.location.href = "/create-persona/review";
 
     } catch (error) {
+      console.error(error);
       alert("Something went wrong.");
     } finally {
       setLoading(false);

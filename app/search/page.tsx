@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
 type Profile = {
   id: string;
   username: string;
-  avatar_url: string;
+  display_name: string;
+  avatar_path: string | null;
 };
 
 export default function SearchPage() {
@@ -15,89 +16,80 @@ export default function SearchPage() {
   const [results, setResults] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const handleSearch = async (value: string) => {
-    setQuery(value);
+  useEffect(() => {
+    const searchUsers = async () => {
+      if (!query) {
+        setResults([]);
+        return;
+      }
 
-    if (!value.trim()) {
-      setResults([]);
-      return;
-    }
+      setLoading(true);
 
-    setLoading(true);
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_path")
+        .or(
+          `username.ilike.%${query}%,display_name.ilike.%${query}%`
+        )
+        .limit(10);
 
-    const { data } = await supabase
-      .from("profiles")
-      .select("id, username, avatar_url")
-      .ilike("username", `%${value}%`)
-      .limit(20);
+      if (!error && data) {
+        setResults(data);
+      }
 
-    if (data) {
-      setResults(data);
-    }
+      setLoading(false);
+    };
 
-    setLoading(false);
-  };
+    const delay = setTimeout(searchUsers, 300);
+    return () => clearTimeout(delay);
+  }, [query]);
 
   return (
-    <div className="h-dvh flex flex-col bg-black text-white">
+    <div className="pb-20 px-4">
 
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-40 bg-black border-b border-gray-800 px-4 pt-6 pb-4">
-        <h2 className="text-lg font-semibold tracking-wide mb-4">
-          Search
-        </h2>
-
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search username..."
-            value={query}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full bg-gray-900 border border-gray-700 rounded-full px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-gray-500"
-          />
-        </div>
+      {/* Search Input */}
+      <div className="sticky top-0 bg-black py-4">
+        <input
+          type="text"
+          placeholder="Search users..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full p-3 rounded-xl bg-[#111] border border-gray-800 text-white"
+        />
       </div>
 
-      {/* Scrollable Results */}
-      <div className="flex-1 overflow-y-auto pb-28">
+      {/* Results */}
+      <div className="mt-6 space-y-4">
+        {loading && <p className="text-gray-500">Searching...</p>}
 
-        {loading && (
-          <div className="px-4 py-6 text-gray-500 text-sm">
-            Searching...
-          </div>
-        )}
+        {results.map((user) => (
+          <Link
+            key={user.id}
+            href={`/profile/${user.username}`}
+            className="flex items-center space-x-4 p-3 rounded-xl bg-[#111] hover:bg-[#1a1a1a]"
+          >
+            <img
+              src={
+                user.avatar_path
+                  ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-avatars/${user.avatar_path}`
+                  : "/default-avatar.png"
+              }
+              className="w-12 h-12 rounded-full object-cover"
+              alt=""
+            />
 
-        <div className="divide-y divide-gray-900">
-          {results.map((user) => (
-            <Link
-              key={user.id}
-              href={`/profile/${user.username}`}
-              className="flex items-center gap-3 px-4 py-4 active:bg-gray-900 transition"
-            >
-              <img
-                src={user.avatar_url}
-                className="w-10 h-10 rounded-full object-cover"
-                alt=""
-              />
-
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold">
-                  {user.username}
-                </span>
-                <span className="text-xs text-gray-500">
-                  @{user.username}
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
-
-        {!loading && query && results.length === 0 && (
-          <div className="px-4 py-10 text-center text-gray-500 text-sm">
-            No users found.
-          </div>
-        )}
+            <div>
+              <p className="text-white font-semibold">
+                {user.username}
+              </p>
+              <p className="text-gray-400 text-sm">
+                {user.display_name}
+              </p>
+            </div>
+          </Link>
+        ))}
       </div>
+
     </div>
   );
 }
