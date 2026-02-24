@@ -67,33 +67,13 @@ export async function POST(req: Request) {
 
 PRIMARY RULE:
 Preserve the exact same person. The generated image must clearly resemble the original individual.
+Enhance this image into a high-quality AI social media post.
+Improve lighting, color grading, depth, and clarity.
+Keep realism.
+Do not distort faces unnaturally.
+Modern cinematic look.
 
-Identity constraints:
-- Keep identical facial structure (jawline, cheekbones, chin shape)
-- Preserve eye shape, eye spacing, and eyebrow structure
-- Preserve nose shape and proportions
-- Preserve lip shape and mouth width
-- Preserve hairline and hairstyle type
-- Preserve natural skin tone
-- Maintain realistic face proportions
 
-Enhancement rules:
-- Improve lighting professionally (studio-level)
-- Increase sharpness and clarity
-- Apply subtle natural skin smoothing (retain real skin texture)
-- Improve color balance and depth
-- Add cinematic but realistic lighting
-
-Do NOT:
-- Change ethnicity, gender, or age
-- Modify facial geometry
-- Over-smooth skin into plastic look
-- Add makeup or change clothing
-- Add text, watermark, or stylization
-- Turn into cartoon or fantasy
-
-Final result:
-A realistic AI-generated professional portrait that strongly resembles the original person.
 `.trim();
 
     // Generate AI portrait

@@ -12,8 +12,10 @@ export default function EditProfilePage() {
   const [bio, setBio] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatingAvatar, setGeneratingAvatar] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -64,28 +66,14 @@ export default function EditProfilePage() {
       return;
     }
 
-    // 1️⃣ Update profile fields
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        username,
-        display_name: displayName,
-        bio,
-      })
-      .eq("id", user.id);
-
-    if (error) {
-      alert(error.message);
-      setSaving(false);
-      return;
-    }
-
-    // 2️⃣ If new avatar selected → transform with AI
+    // 🔥 1️⃣ If avatar selected → generate AI avatar FIRST
     if (avatarFile) {
       try {
+        setGeneratingAvatar(true);
+
         const dataUrl = await fileToDataUrl(avatarFile);
 
-        const res = await fetch("/api/generate-avatar", {
+        const res = await fetch("/api/transform-avatar", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -101,14 +89,39 @@ export default function EditProfilePage() {
         if (!res.ok) {
           alert(result.error || "Avatar generation failed");
           setSaving(false);
+          setGeneratingAvatar(false);
           return;
         }
+
+        // Update preview with AI result
+        if (result.avatar_url) {
+          setAvatarPreview(result.avatar_url);
+        }
+
+        setGeneratingAvatar(false);
       } catch (err) {
         console.error(err);
         alert("Avatar error");
         setSaving(false);
+        setGeneratingAvatar(false);
         return;
       }
+    }
+
+    // 🔥 2️⃣ Update text fields AFTER avatar
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        username,
+        display_name: displayName,
+        bio,
+      })
+      .eq("id", user.id);
+
+    if (error) {
+      alert(error.message);
+      setSaving(false);
+      return;
     }
 
     router.push("/profile/me");
@@ -127,7 +140,7 @@ export default function EditProfilePage() {
 
       <h1 className="text-2xl font-bold">Edit Profile</h1>
 
-      {/* Avatar Preview */}
+      {/* Avatar */}
       <div className="flex flex-col items-center space-y-4">
         <div className="w-28 h-28 rounded-full overflow-hidden border border-gray-700">
           {avatarPreview ? (
@@ -155,6 +168,13 @@ export default function EditProfilePage() {
           }}
           className="text-sm"
         />
+
+        {generatingAvatar && (
+          <p className="text-xs text-purple-400">
+            Generating AI avatar...
+          </p>
+        )}
+
         <p className="text-xs text-gray-500 text-center">
           Upload a photo — it will be transformed into your AI avatar.
         </p>
