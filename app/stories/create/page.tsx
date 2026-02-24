@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 type StoryState =
@@ -16,6 +16,13 @@ export default function CreateStoryPage() {
   const [state, setState] = useState<StoryState>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
+
+  // Prevent memory leak from object URL
+  useEffect(() => {
+    return () => {
+      if (file) URL.revokeObjectURL(URL.createObjectURL(file));
+    };
+  }, [file]);
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -68,7 +75,6 @@ export default function CreateStoryPage() {
       setPreviewUrl(result.output_url);
       setOutputPath(result.output_path);
       setState("preview");
-
     } catch (err) {
       console.error(err);
       alert("Transform error");
@@ -81,86 +87,103 @@ export default function CreateStoryPage() {
 
     setState("publishing");
 
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
 
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
+      if (!token) {
+        window.location.href = "/login";
+        return;
+      }
 
-    const res = await fetch("/api/publish-story", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        output_url: previewUrl,
-        output_path: outputPath,
-        prompt,
-        caption,
-        visibility: "public",
-      }),
-    });
+      const res = await fetch("/api/publish-story", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          output_url: previewUrl,
+          output_path: outputPath,
+          prompt,
+          caption,
+          visibility: "public",
+        }),
+      });
 
-    const result = await res.json();
+      const result = await res.json();
 
-    if (!res.ok) {
-      alert(result.error || "Publish failed");
+      if (!res.ok) {
+        alert(result.error || "Publish failed");
+        setState("preview");
+        return;
+      }
+
+      window.location.href = "/feed";
+    } catch (err) {
+      console.error(err);
+      alert("Publish error");
       setState("preview");
-      return;
     }
-
-    window.location.href = "/stories";
   };
 
   return (
     <div className="pb-24 px-4 max-w-xl mx-auto space-y-6">
 
-      <h1 className="text-2xl font-bold neon-text">
+      <h1 className="text-2xl font-bold">
         Create Story
       </h1>
 
       {/* Upload */}
-      <div className="bg-[#111] p-4 rounded-xl space-y-4">
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
+      {state === "idle" && (
+        <div className="bg-[#111] p-4 rounded-xl space-y-4">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
 
-        {file && (
-          <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
-            <img
-              src={URL.createObjectURL(file)}
-              className="absolute inset-0 w-full h-full object-cover"
-              alt=""
-            />
-          </div>
-        )}
-      </div>
+          {file && (
+            <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
+              <img
+                src={URL.createObjectURL(file)}
+                className="absolute inset-0 w-full h-full object-cover"
+                alt=""
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Prompt */}
-      <div className="bg-[#111] p-4 rounded-xl">
-        <textarea
-          placeholder="Describe transformation..."
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="w-full bg-black border border-gray-800 rounded-lg p-3"
-          rows={4}
-        />
-      </div>
+      {state === "idle" && (
+        <div className="bg-[#111] p-4 rounded-xl">
+          <textarea
+            placeholder="Describe transformation..."
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            className="w-full bg-black border border-gray-800 rounded-lg p-3"
+            rows={4}
+          />
+        </div>
+      )}
 
       {/* Transform Button */}
-      {state !== "preview" && (
+      {state === "idle" && (
         <button
           onClick={handleTransform}
-          disabled={state === "transforming"}
-          className="neon-button w-full py-3 rounded-xl text-black font-semibold disabled:opacity-50"
+          className="w-full py-3 rounded-xl bg-white text-black font-semibold"
         >
-          {state === "transforming" ? "Transforming..." : "Transform Story"}
+          Transform Story
         </button>
+      )}
+
+      {/* Transform Loading */}
+      {state === "transforming" && (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
+          <p className="text-gray-400">Transforming...</p>
+        </div>
       )}
 
       {/* Preview */}
@@ -170,7 +193,6 @@ export default function CreateStoryPage() {
           <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
             <img
               src={previewUrl}
-              loading="lazy"
               className="absolute inset-0 w-full h-full object-cover"
               alt=""
             />
@@ -186,7 +208,11 @@ export default function CreateStoryPage() {
 
           <div className="flex space-x-4">
             <button
-              onClick={() => setState("idle")}
+              onClick={() => {
+                setState("idle");
+                setPreviewUrl(null);
+                setOutputPath(null);
+              }}
               className="flex-1 border border-gray-700 py-3 rounded-xl"
             >
               Edit
@@ -194,14 +220,22 @@ export default function CreateStoryPage() {
 
             <button
               onClick={handlePublish}
-              disabled={state === "publishing"}
-              className="flex-1 neon-button py-3 rounded-xl text-black font-semibold disabled:opacity-50"
+              className="flex-1 bg-white text-black py-3 rounded-xl font-semibold"
             >
-              {state === "publishing" ? "Publishing..." : "Publish Story"}
+              Publish Story
             </button>
           </div>
         </div>
       )}
+
+      {/* Publishing */}
+      {state === "publishing" && (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
+          <p className="text-gray-400">Publishing...</p>
+        </div>
+      )}
+
     </div>
   );
 }

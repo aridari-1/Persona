@@ -9,7 +9,7 @@ interface Story {
   profiles: {
     username: string;
     avatar_url: string | null;
-  };
+  }[];
 }
 
 interface Post {
@@ -22,7 +22,7 @@ interface Post {
   profiles: {
     username: string;
     avatar_url: string | null;
-  };
+  }[];
 }
 
 export default function FeedPage() {
@@ -40,9 +40,12 @@ export default function FeedPage() {
     const { data: session } = await supabase.auth.getSession();
     const user = session.session?.user;
 
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
-    // 1️⃣ Get list of people current user follows
+    // 1️⃣ Get people the user follows
     const { data: followingData } = await supabase
       .from("follows")
       .select("following_id")
@@ -51,10 +54,10 @@ export default function FeedPage() {
     const followingIds =
       followingData?.map((f) => f.following_id) || [];
 
-    // Include own id (Instagram behavior)
+    // Include own content (Instagram behavior)
     const feedUserIds = [...followingIds, user.id];
 
-    // 2️⃣ Fetch stories (only active ones)
+    // 2️⃣ Fetch active stories
     const { data: storiesData } = await supabase
       .from("stories")
       .select(`
@@ -108,32 +111,36 @@ export default function FeedPage() {
       {/* STORIES ROW */}
       <div className="flex overflow-x-auto space-x-4 px-4 pt-4">
 
-        {stories.map((story) => (
-          <div
-            key={story.id}
-            className="flex flex-col items-center space-y-2"
-          >
-            <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-500 to-pink-500">
-              <div className="w-full h-full rounded-full overflow-hidden bg-black">
-                {story.profiles?.avatar_url ? (
-                  <img
-                    src={story.profiles.avatar_url}
-                    className="w-full h-full object-cover"
-                    alt=""
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xs">
-                    ?
-                  </div>
-                )}
-              </div>
-            </div>
+        {stories.map((story) => {
+          const profile = story.profiles?.[0];
 
-            <span className="text-xs text-gray-400">
-              {story.profiles?.username}
-            </span>
-          </div>
-        ))}
+          return (
+            <div
+              key={story.id}
+              className="flex flex-col items-center space-y-2"
+            >
+              <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-500 to-pink-500">
+                <div className="w-full h-full rounded-full overflow-hidden bg-black">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
+                      ?
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <span className="text-xs text-gray-400">
+                {profile?.username || "user"}
+              </span>
+            </div>
+          );
+        })}
 
       </div>
 
@@ -142,6 +149,8 @@ export default function FeedPage() {
 
         {posts.map((post) => {
           const media = post.post_media?.[0];
+          const profile = post.profiles?.[0];
+
           if (!media) return null;
 
           const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-posts/${media.output_path}`;
@@ -152,20 +161,21 @@ export default function FeedPage() {
               {/* Post Header */}
               <div className="flex items-center space-x-3 p-4">
                 <div className="w-10 h-10 rounded-full overflow-hidden bg-black">
-                  {post.profiles?.avatar_url ? (
+                  {profile?.avatar_url ? (
                     <img
-                      src={post.profiles.avatar_url}
+                      src={profile.avatar_url}
                       className="w-full h-full object-cover"
                       alt=""
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xs">
+                    <div className="w-full h-full flex items-center justify-center text-xs text-gray-500">
                       ?
                     </div>
                   )}
                 </div>
+
                 <span className="text-sm font-semibold">
-                  {post.profiles?.username}
+                  {profile?.username || "user"}
                 </span>
               </div>
 
