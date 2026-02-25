@@ -11,22 +11,20 @@ export default function OnboardingPage() {
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
 
-  // NEW: avatar upload state
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-
   const [checking, setChecking] = useState(false);
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Redirect if profile already exists
   useEffect(() => {
     const checkProfile = async () => {
-      const { data: session } = await supabase.auth.getSession();
-      const user = session.session?.user;
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const user = sessionRes.session?.user;
 
       if (!user) {
-        router.push("/login");
+        router.replace("/login");
         return;
       }
 
@@ -34,17 +32,17 @@ export default function OnboardingPage() {
         .from("profiles")
         .select("id")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile) {
-        router.push("/feed");
+        router.replace("/feed");
       }
     };
 
     checkProfile();
   }, [router]);
 
-  // Username validation + availability check
+  // Username availability check
   useEffect(() => {
     if (!username) {
       setUsernameAvailable(null);
@@ -74,76 +72,40 @@ export default function OnboardingPage() {
     return () => clearTimeout(delay);
   }, [username]);
 
-  // NEW: handle avatar file change
-  const handleAvatarChange = (file: File | null) => {
-    setAvatarFile(file);
-
-    if (!file) {
-      setAvatarPreview(null);
-      return;
-    }
-
-    const preview = URL.createObjectURL(file);
-    setAvatarPreview(preview);
-  };
-
-  // NEW: upload avatar and return public URL
-  const uploadAvatar = async (userId: string) => {
-    if (!avatarFile) return null;
-
-    const path = `${userId}/avatar.png`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("persona-avatars")
-      .upload(path, avatarFile, {
-        upsert: true,
-        contentType: avatarFile.type || "image/png",
-      });
-
-    if (uploadError) {
-      console.error("Avatar upload error:", uploadError.message);
-      return null;
-    }
-
-    const { data } = supabase.storage
-      .from("persona-avatars")
-      .getPublicUrl(path);
-
-    return data.publicUrl;
-  };
-
   const handleSubmit = async () => {
-    if (!usernameAvailable || !displayName) return;
+    if (!usernameAvailable || !displayName || loading) return;
 
     setLoading(true);
+    setErrorMsg(null);
 
-    const { data: session } = await supabase.auth.getSession();
-    const user = session.session?.user;
+    try {
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const user = sessionRes.session?.user;
 
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
 
-    // NEW: upload avatar first (optional)
-    const avatarUrl = await uploadAvatar(user.id);
+      const { error } = await supabase.from("profiles").insert({
+        id: user.id,
+        username,
+        display_name: displayName,
+        persona_name: "Persona",
+        bio,
+        avatar_url: null,
+      });
 
-    const { error } = await supabase.from("profiles").insert({
-      id: user.id,
-      username,
-      display_name: displayName,
-      persona_name: "Persona",
-      bio,
-      avatar_url: avatarUrl, // NEW
-    });
+      if (error) {
+        throw new Error(error.message);
+      }
 
-    if (error) {
-      console.error("Profile insert error:", error.message);
+      router.replace("/feed");
+
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Something went wrong.");
       setLoading(false);
-      return;
     }
-
-    router.push("/feed");
   };
 
   return (
@@ -151,30 +113,14 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md space-y-6">
 
         <h1 className="text-2xl font-bold text-center">
-          Welcome to <span className="text-purple-500">Persona</span>
+          Set up your Persona
         </h1>
 
-        {/* NEW: Avatar Upload */}
-        <div className="space-y-3">
-          <label className="text-sm text-gray-400">Profile Photo (optional)</label>
-
-          <div className="flex items-center space-x-4">
-            <div className="w-16 h-16 rounded-full overflow-hidden bg-[#111] border border-gray-800 flex items-center justify-center">
-              {avatarPreview ? (
-                <img src={avatarPreview} className="w-full h-full object-cover" alt="" />
-              ) : (
-                <span className="text-xs text-gray-500">No photo</span>
-              )}
-            </div>
-
-            <input
-              type="file"
-              accept="image/*"
-              className="text-sm text-gray-400"
-              onChange={(e) => handleAvatarChange(e.target.files?.[0] ?? null)}
-            />
+        {errorMsg && (
+          <div className="border border-red-700 bg-red-900/20 text-red-200 text-sm p-3 rounded-lg">
+            {errorMsg}
           </div>
-        </div>
+        )}
 
         {/* Username */}
         <div className="space-y-2">
@@ -186,6 +132,7 @@ export default function OnboardingPage() {
             className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 focus:outline-none focus:border-purple-500"
             placeholder="your_username"
           />
+
           {checking && (
             <p className="text-xs text-gray-500">Checking availability...</p>
           )}
