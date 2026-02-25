@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function SignupPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,7 +20,7 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -28,20 +31,18 @@ export default function SignupPage() {
       return;
     }
 
-    window.location.href = "/feed";
+    // 🔥 Always go to onboarding after signup
+    router.replace("/onboarding");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black px-6">
-
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6">
-
         <h1 className="text-3xl font-bold text-center neon-text">
           Join Persona
         </h1>
 
         <div className="space-y-4">
-
           <input
             type="email"
             placeholder="Email"
@@ -65,7 +66,6 @@ export default function SignupPage() {
           >
             {loading ? "Creating Account..." : "Sign Up"}
           </button>
-
         </div>
 
         <div className="text-center text-gray-400 text-sm">
@@ -74,9 +74,7 @@ export default function SignupPage() {
             Login
           </Link>
         </div>
-
       </div>
-
     </div>
   );
 }

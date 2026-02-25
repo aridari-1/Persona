@@ -2,39 +2,51 @@
 
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
-      alert("Enter email and password.");
+      alert("Please enter your email and password.");
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    if (error) {
-      alert(error.message);
+      if (error) {
+        alert(error.message);
+        setLoading(false);
+        return;
+      }
+
+      // 🔥 Redirect into app shell
+      // AppLayout will handle profile check + onboarding enforcement
+      router.replace("/feed");
+
+    } catch (err) {
+      console.error("Login error:", err);
+      alert("Something went wrong.");
       setLoading(false);
-      return;
     }
-
-    window.location.href = "/feed";
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black px-6">
 
-      <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6">
+      <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 shadow-xl">
 
         <h1 className="text-3xl font-bold text-center neon-text">
           Welcome Back
@@ -45,7 +57,7 @@ export default function LoginPage() {
           <input
             type="email"
             placeholder="Email"
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white"
+            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white focus:outline-none focus:border-purple-500"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -53,7 +65,7 @@ export default function LoginPage() {
           <input
             type="password"
             placeholder="Password"
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white"
+            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white focus:outline-none focus:border-purple-500"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

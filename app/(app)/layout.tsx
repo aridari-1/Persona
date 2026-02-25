@@ -15,16 +15,33 @@ export default function AppLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkUser = async () => {
+    const checkUserAndProfile = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) {
+      const user = data.session?.user;
+
+      // 🔐 Not logged in
+      if (!user) {
         router.replace("/login");
         return;
       }
+
+      // 🔎 Check if profile exists
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+
+      // 🚨 No profile → force onboarding
+      if (!profile) {
+        router.replace("/onboarding");
+        return;
+      }
+
       setLoading(false);
     };
 
-    checkUser();
+    checkUserAndProfile();
   }, [router]);
 
   if (loading) {
@@ -38,15 +55,12 @@ export default function AppLayout({
   return (
     <div className="h-screen flex flex-col overflow-hidden">
 
-      {/* Top */}
       <TopBar />
 
-      {/* Scrollable Feed Area */}
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
 
-      {/* Bottom */}
       <BottomNav />
 
     </div>
