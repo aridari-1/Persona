@@ -194,9 +194,8 @@ export default function ProfilePage() {
           >
             <div className="w-28 h-28 rounded-full overflow-hidden bg-black">
               {profile.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  className="w-full h-full object-cover"
+                <img src={`${profile.avatar_url}?v=${Date.now()}`} 
+                 className="w-full h-full object-cover"
                   alt=""
                 />
               ) : (

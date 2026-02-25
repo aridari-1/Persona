@@ -1,25 +1,42 @@
 "use client";
 
-import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { Bell, Send } from "lucide-react";
 
 export default function TopBar() {
+  const router = useRouter();
+
   return (
-    <header className="border-b border-gray-800 p-4 flex justify-between items-center bg-black">
+    <header className="h-14 px-4 flex items-center justify-between border-b border-gray-800 bg-black">
 
-      <h1 className="text-xl font-bold neon-text">
-        PERSONA
-      </h1>
-
-      <button
-        onClick={async () => {
-          await supabase.auth.signOut();
-          window.location.href = "/";
-        }}
-        className="text-sm text-gray-400 hover:text-white"
+      {/* Logo / Brand */}
+      <div
+        onClick={() => router.push("/feed")}
+        className="text-xl font-bold tracking-wide cursor-pointer select-none"
       >
-        Logout
-      </button>
+        PERSONA
+      </div>
 
+      {/* Right Actions */}
+      <div className="flex items-center space-x-5">
+
+        {/* Notifications */}
+        <button
+          onClick={() => router.push("/notifications")}
+          className="text-gray-300 hover:text-white transition"
+        >
+          <Bell size={22} />
+        </button>
+
+        {/* Messages */}
+        <button
+          onClick={() => router.push("/messages")}
+          className="text-gray-300 hover:text-white transition"
+        >
+          <Send size={22} />
+        </button>
+
+      </div>
     </header>
   );
 }

@@ -1,58 +1,24 @@
-"use client";
+import type { Metadata } from "next";
+import "./globals.css";
+import AppProvider from "@/app/providers/AppProvider";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import BottomNav from "@/components/layout/BottomNav";
-import TopBar from "@/components/layout/TopBar";
-import { usePathname } from "next/navigation";
+export const metadata: Metadata = {
+  title: "Persona",
+  description: "AI-generated social media platform",
+};
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [checkedAuth, setCheckedAuth] = useState(false);
-  const pathname = usePathname();
-
-  useEffect(() => {
-    const checkUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const publicRoutes = ["/", "/login", "/signup"];
-
-      if (!session && !publicRoutes.includes(pathname)) {
-        window.location.href = "/login";
-        return;
-      }
-
-      setCheckedAuth(true);
-    };
-
-    checkUser();
-  }, [pathname]);
-
-  const hideNav =
-    pathname === "/" || pathname === "/login" || pathname === "/signup";
-
   return (
-    <html>
-      <body className="bg-black text-white min-h-screen flex flex-col">
-
-        {/* Show loader INSIDE body, not replacing html */}
-        {!checkedAuth ? (
-          <div className="flex-1 flex items-center justify-center">
-            Loading...
-          </div>
-        ) : (
-          <>
-            {!hideNav && <TopBar />}
-            <main className="flex-1 pb-16">{children}</main>
-            {!hideNav && <BottomNav />}
-          </>
-        )}
-
+    <html lang="en">
+      <body className="h-screen bg-black text-white antialiased">
+        {/* Global Providers (Context, Theme, etc.) */}
+        <AppProvider>
+          {children}
+        </AppProvider>
       </body>
     </html>
   );

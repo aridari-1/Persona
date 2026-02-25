@@ -94,9 +94,10 @@ export default function EditProfilePage() {
         }
 
         // Update preview with AI result
-        if (result.avatar_url) {
-          setAvatarPreview(result.avatar_url);
-        }
+       if (result.avatar_url) {
+  const versionedUrl = `${result.avatar_url}?v=${Date.now()}`;
+  setAvatarPreview(versionedUrl);
+}
 
         setGeneratingAvatar(false);
       } catch (err) {

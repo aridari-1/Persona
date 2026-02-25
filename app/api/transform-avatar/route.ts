@@ -57,6 +57,14 @@ Improve lighting, clarity, sharpness.
 Do NOT change ethnicity, age, or facial geometry.
 No cartoon, no fantasy.
 Studio-level portrait.
+Identity constraints: 
+- Keep identical facial structure (jawline, cheekbones, chin shape) 
+- Preserve eye shape, eye spacing, and eyebrow structure 
+- Preserve nose shape and proportions 
+- Preserve lip shape and mouth width 
+- Preserve hairline and hairstyle type 
+- Preserve natural skin tone 
+- Maintain realistic face proportions
 `.trim();
 
     const result = await openai.images.edit({
@@ -83,14 +91,14 @@ Studio-level portrait.
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const path = `${user.id}/avatar.webp`;
+  const path = `${user.id}/avatar-${Date.now()}.webp`;
 
-    await supabaseAdmin.storage
-      .from("persona-avatars")
-      .upload(path, optimized, {
-        contentType: "image/webp",
-        upsert: true,
-      });
+await supabaseAdmin.storage
+  .from("persona-avatars")
+  .upload(path, optimized, {
+    contentType: "image/webp",
+    upsert: false,
+  });
 
     const { data } = supabaseAdmin.storage
       .from("persona-avatars")
