@@ -86,6 +86,12 @@ export default function LoginPage() {
             Sign up
           </Link>
         </div>
+        <button
+  onClick={() => router.push("/forgot-password")}
+  className="text-sm text-gray-400"
+>
+  Forgot password?
+</button>
 
       </div>
 
