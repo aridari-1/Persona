@@ -24,7 +24,7 @@ export default function BottomNav() {
           <Home size={24} />
         </Link>
 
-        <Link href="/explore" className={iconClass("/explore")}>
+        <Link href="/search" className={iconClass("/search")}>
           <Search size={24} />
         </Link>
 

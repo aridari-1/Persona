@@ -44,7 +44,7 @@ export default function CreatePage() {
         return;
       }
 
-      const res = await fetch("/api/transform", {
+      const res = await fetch("/api/transform-post", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
