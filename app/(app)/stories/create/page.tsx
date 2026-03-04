@@ -11,18 +11,35 @@ type StoryState =
 
 export default function CreateStoryPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [prompt, setPrompt] = useState("");
   const [caption, setCaption] = useState("");
   const [state, setState] = useState<StoryState>("idle");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
 
-  // Prevent memory leak from object URL
+  // ===============================
+  // 🔥 Fetch remaining generations
+  // ===============================
+  const fetchRemaining = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+
+    const res = await fetch("/api/usage", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      setRemaining(result.remaining);
+    }
+  };
+
   useEffect(() => {
-    return () => {
-      if (file) URL.revokeObjectURL(URL.createObjectURL(file));
-    };
-  }, [file]);
+    fetchRemaining();
+  }, []);
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -32,9 +49,17 @@ export default function CreateStoryPage() {
       reader.readAsDataURL(file);
     });
 
+  // ===============================
+  // 🔥 SECURE TRANSFORM FLOW
+  // ===============================
   const handleTransform = async () => {
-    if (!file || !prompt) {
-      alert("Upload image and write prompt.");
+    if (!file) {
+      alert("Upload a photo first.");
+      return;
+    }
+
+    if (remaining === 0) {
+      alert("Daily limit reached (2 per day).");
       return;
     }
 
@@ -51,7 +76,24 @@ export default function CreateStoryPage() {
         return;
       }
 
-      const res = await fetch("/api/transform", {
+      // 1️⃣ Request generation token
+      const tokenRes = await fetch("/api/request-generation", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const tokenData = await tokenRes.json();
+
+      if (!tokenRes.ok) {
+        alert(tokenData.error || "Generation not allowed");
+        setState("idle");
+        return;
+      }
+
+      // 2️⃣ Call transform endpoint
+      const res = await fetch("/api/transform-story", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -59,15 +101,23 @@ export default function CreateStoryPage() {
         },
         body: JSON.stringify({
           inputDataUrl: dataUrl,
-          prompt,
-          type: "story",
+          generationToken: tokenData.generationToken,
         }),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        alert(result.error || "Transform failed");
+        if (res.status === 429) {
+          setRemaining(0);
+        }
+
+        if (res.status === 402) {
+          alert("Free pool ended. Please purchase credits.");
+        } else {
+          alert(result.error || "AI transformation failed");
+        }
+
         setState("idle");
         return;
       }
@@ -75,13 +125,19 @@ export default function CreateStoryPage() {
       setPreviewUrl(result.output_url);
       setOutputPath(result.output_path);
       setState("preview");
+
+      await fetchRemaining();
+
     } catch (err) {
       console.error(err);
-      alert("Transform error");
+      alert("Unexpected error");
       setState("idle");
     }
   };
 
+  // ===============================
+  // 🔥 PUBLISH STORY
+  // ===============================
   const handlePublish = async () => {
     if (!previewUrl || !outputPath) return;
 
@@ -105,7 +161,6 @@ export default function CreateStoryPage() {
         body: JSON.stringify({
           output_url: previewUrl,
           output_path: outputPath,
-          prompt,
           caption,
           visibility: "public",
         }),
@@ -120,6 +175,7 @@ export default function CreateStoryPage() {
       }
 
       window.location.href = "/feed";
+
     } catch (err) {
       console.error(err);
       alert("Publish error");
@@ -134,9 +190,25 @@ export default function CreateStoryPage() {
         Create Story
       </h1>
 
-      {/* Upload */}
+      {/* Remaining */}
+      {remaining !== null && (
+        <div className="text-sm">
+          {remaining > 0 ? (
+            <span className="text-gray-400">
+              {remaining} generation{remaining !== 1 && "s"} remaining today
+            </span>
+          ) : (
+            <span className="text-red-500">
+              Daily limit reached (2 per day)
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Idle Upload */}
       {state === "idle" && (
         <div className="bg-[#111] p-4 rounded-xl space-y-4">
+
           <input
             type="file"
             accept="image/*"
@@ -152,37 +224,25 @@ export default function CreateStoryPage() {
               />
             </div>
           )}
+
+          <button
+            onClick={handleTransform}
+            disabled={!file || remaining === 0}
+            className="w-full py-3 rounded-xl bg-white text-black font-semibold disabled:opacity-40"
+          >
+            Turn Into AI Story
+          </button>
+
         </div>
       )}
 
-      {/* Prompt */}
-      {state === "idle" && (
-        <div className="bg-[#111] p-4 rounded-xl">
-          <textarea
-            placeholder="Describe transformation..."
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="w-full bg-black border border-gray-800 rounded-lg p-3"
-            rows={4}
-          />
-        </div>
-      )}
-
-      {/* Transform Button */}
-      {state === "idle" && (
-        <button
-          onClick={handleTransform}
-          className="w-full py-3 rounded-xl bg-white text-black font-semibold"
-        >
-          Transform Story
-        </button>
-      )}
-
-      {/* Transform Loading */}
+      {/* Transforming */}
       {state === "transforming" && (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
-          <p className="text-gray-400">Transforming...</p>
+          <p className="text-gray-400">
+            Creating your AI story...
+          </p>
         </div>
       )}
 
@@ -207,6 +267,7 @@ export default function CreateStoryPage() {
           />
 
           <div className="flex space-x-4">
+
             <button
               onClick={() => {
                 setState("idle");
@@ -215,7 +276,7 @@ export default function CreateStoryPage() {
               }}
               className="flex-1 border border-gray-700 py-3 rounded-xl"
             >
-              Edit
+              Try Another
             </button>
 
             <button
@@ -224,6 +285,7 @@ export default function CreateStoryPage() {
             >
               Publish Story
             </button>
+
           </div>
         </div>
       )}
@@ -232,7 +294,9 @@ export default function CreateStoryPage() {
       {state === "publishing" && (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
-          <p className="text-gray-400">Publishing...</p>
+          <p className="text-gray-400">
+            Publishing...
+          </p>
         </div>
       )}
 

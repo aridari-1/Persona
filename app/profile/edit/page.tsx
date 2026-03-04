@@ -17,9 +17,27 @@ export default function EditProfilePage() {
   const [saving, setSaving] = useState(false);
   const [generatingAvatar, setGeneratingAvatar] = useState(false);
 
+  const [remaining, setRemaining] = useState<number | null>(null);
+
   useEffect(() => {
     fetchProfile();
+    fetchRemaining();
   }, []);
+
+  const fetchRemaining = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+
+    const res = await fetch("/api/usage", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      setRemaining(result.remaining);
+    }
+  };
 
   const fetchProfile = async () => {
     const { data: session } = await supabase.auth.getSession();
@@ -66,13 +84,45 @@ export default function EditProfilePage() {
       return;
     }
 
-    // 🔥 1️⃣ If avatar selected → generate AI avatar FIRST
+    // 🔥 AVATAR GENERATION (TOKEN FLOW)
     if (avatarFile) {
       try {
         setGeneratingAvatar(true);
 
         const dataUrl = await fileToDataUrl(avatarFile);
 
+        // 1️⃣ Ask backend if generation allowed
+        const permissionRes = await fetch("/api/request-generation", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        const permissionData = await permissionRes.json();
+
+        if (!permissionRes.ok) {
+          setGeneratingAvatar(false);
+          setSaving(false);
+
+          if (permissionRes.status === 402) {
+            alert("Free credits exhausted. Please purchase credits.");
+            router.push("/pricing");
+            return;
+          }
+
+          if (permissionRes.status === 429) {
+            setRemaining(0);
+          }
+
+          alert(permissionData.error || "Generation blocked");
+          return;
+        }
+
+        const generationToken = permissionData.generationToken;
+
+        // 2️⃣ Call transform with signed token
         const res = await fetch("/api/transform-avatar", {
           method: "POST",
           headers: {
@@ -81,35 +131,37 @@ export default function EditProfilePage() {
           },
           body: JSON.stringify({
             inputDataUrl: dataUrl,
+            generationToken,
           }),
         });
 
         const result = await res.json();
 
         if (!res.ok) {
-          alert(result.error || "Avatar generation failed");
-          setSaving(false);
           setGeneratingAvatar(false);
+          setSaving(false);
+          alert(result.error || "Avatar generation failed");
           return;
         }
 
-        // Update preview with AI result
-       if (result.avatar_url) {
-  const versionedUrl = `${result.avatar_url}?v=${Date.now()}`;
-  setAvatarPreview(versionedUrl);
-}
+        if (result.avatar_url) {
+          const versionedUrl = `${result.avatar_url}?v=${Date.now()}`;
+          setAvatarPreview(versionedUrl);
+        }
 
+        await fetchRemaining();
         setGeneratingAvatar(false);
+
       } catch (err) {
         console.error(err);
         alert("Avatar error");
-        setSaving(false);
         setGeneratingAvatar(false);
+        setSaving(false);
         return;
       }
     }
 
-    // 🔥 2️⃣ Update text fields AFTER avatar
+    // 🔥 UPDATE TEXT FIELDS
     const { error } = await supabase
       .from("profiles")
       .update({
@@ -138,10 +190,22 @@ export default function EditProfilePage() {
 
   return (
     <div className="pb-24 px-4 max-w-xl mx-auto mt-8 space-y-8">
-
       <h1 className="text-2xl font-bold">Edit Profile</h1>
 
-      {/* Avatar */}
+      {remaining !== null && (
+        <div className="text-sm">
+          {remaining > 0 ? (
+            <span className="text-gray-400">
+              {remaining} generation{remaining !== 1 && "s"} remaining today
+            </span>
+          ) : (
+            <span className="text-red-500">
+              Daily limit reached (2 per day)
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col items-center space-y-4">
         <div className="w-28 h-28 rounded-full overflow-hidden border border-gray-700">
           {avatarPreview ? (
@@ -181,7 +245,6 @@ export default function EditProfilePage() {
         </p>
       </div>
 
-      {/* Username */}
       <div>
         <label className="text-sm text-gray-400">Username</label>
         <input
@@ -191,7 +254,6 @@ export default function EditProfilePage() {
         />
       </div>
 
-      {/* Display Name */}
       <div>
         <label className="text-sm text-gray-400">Display Name</label>
         <input
@@ -201,7 +263,6 @@ export default function EditProfilePage() {
         />
       </div>
 
-      {/* Bio */}
       <div>
         <label className="text-sm text-gray-400">Bio</label>
         <textarea
@@ -219,7 +280,6 @@ export default function EditProfilePage() {
       >
         {saving ? "Saving..." : "Save Changes"}
       </button>
-
     </div>
   );
 }

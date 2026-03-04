@@ -3,7 +3,9 @@ import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseWithToken } from "@/lib/supabaseServer";
+import { logUsage } from "@/lib/usageGuard";
 import sharp from "sharp";
+import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
@@ -19,6 +21,9 @@ function parseDataUrl(dataUrl: string): Buffer {
 
 export async function POST(req: Request) {
   try {
+    // ===============================
+    // 1️⃣ AUTH CHECK
+    // ===============================
     const auth = req.headers.get("Authorization") || "";
     if (!auth.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -33,11 +38,50 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { inputDataUrl } = await req.json();
-    if (!inputDataUrl) {
-      return NextResponse.json({ error: "Missing image" }, { status: 400 });
+    // ===============================
+    // 2️⃣ READ BODY
+    // ===============================
+    const { inputDataUrl, generationToken } = await req.json();
+
+    if (!generationToken) {
+      return NextResponse.json(
+        { error: "Missing generation token." },
+        { status: 403 }
+      );
     }
 
+    // ===============================
+    // 3️⃣ VERIFY SIGNED GENERATION TOKEN
+    // ===============================
+    try {
+      const decoded: any = jwt.verify(
+        generationToken,
+        process.env.GENERATION_TOKEN_SECRET!
+      );
+
+      if (decoded.userId !== user.id) {
+        return NextResponse.json(
+          { error: "Invalid token." },
+          { status: 403 }
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: "Token expired or invalid." },
+        { status: 403 }
+      );
+    }
+
+    if (!inputDataUrl) {
+      return NextResponse.json(
+        { error: "Missing image" },
+        { status: 400 }
+      );
+    }
+
+    // ===============================
+    // 4️⃣ IMAGE PREP
+    // ===============================
     const originalBuffer = parseDataUrl(inputDataUrl);
 
     const preparedImage = await sharp(originalBuffer)
@@ -50,6 +94,9 @@ export async function POST(req: Request) {
       type: "image/png",
     });
 
+    // ===============================
+    // 5️⃣ AI PROMPT
+    // ===============================
     const avatarPrompt = `
 Create a high-quality professional AI portrait.
 Preserve identity exactly.
@@ -57,16 +104,20 @@ Improve lighting, clarity, sharpness.
 Do NOT change ethnicity, age, or facial geometry.
 No cartoon, no fantasy.
 Studio-level portrait.
-Identity constraints: 
-- Keep identical facial structure (jawline, cheekbones, chin shape) 
-- Preserve eye shape, eye spacing, and eyebrow structure 
-- Preserve nose shape and proportions 
-- Preserve lip shape and mouth width 
-- Preserve hairline and hairstyle type 
-- Preserve natural skin tone 
+
+Identity constraints:
+- Keep identical facial structure
+- Preserve eye shape and spacing
+- Preserve nose shape and proportions
+- Preserve lip shape and mouth width
+- Preserve hairline and hairstyle
+- Preserve natural skin tone
 - Maintain realistic face proportions
 `.trim();
 
+    // ===============================
+    // 6️⃣ AI GENERATION
+    // ===============================
     const result = await openai.images.edit({
       model: "gpt-image-1",
       image: file,
@@ -75,8 +126,12 @@ Identity constraints:
     });
 
     const b64 = result.data?.[0]?.b64_json;
+
     if (!b64) {
-      return NextResponse.json({ error: "Avatar generation failed" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Avatar generation failed" },
+        { status: 500 }
+      );
     }
 
     const rawBuffer = Buffer.from(b64, "base64");
@@ -86,31 +141,49 @@ Identity constraints:
       .webp({ quality: 90 })
       .toBuffer();
 
+    // ===============================
+    // 7️⃣ STORAGE UPLOAD
+    // ===============================
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-  const path = `${user.id}/avatar-${Date.now()}.webp`;
+    const path = `${user.id}/avatar.webp`;
 
-await supabaseAdmin.storage
-  .from("persona-avatars")
-  .upload(path, optimized, {
-    contentType: "image/webp",
-    upsert: false,
-  });
+    await supabaseAdmin.storage
+      .from("persona-avatars")
+      .upload(path, optimized, {
+        contentType: "image/webp",
+        upsert: true,
+      });
 
     const { data } = supabaseAdmin.storage
       .from("persona-avatars")
       .getPublicUrl(path);
 
-    await supabase.from("profiles").update({
-      avatar_url: data.publicUrl,
-    }).eq("id", user.id);
+    // ===============================
+    // 8️⃣ UPDATE PROFILE
+    // ===============================
+    await supabase
+      .from("profiles")
+      .update({ avatar_url: data.publicUrl })
+      .eq("id", user.id);
 
-    return NextResponse.json({ avatar_url: data.publicUrl });
+    // ===============================
+    // 9️⃣ LOG USAGE (AFTER SUCCESS)
+    // ===============================
+    await logUsage(token, user.id, "avatar");
+
+    return NextResponse.json({
+      avatar_url: data.publicUrl,
+    });
 
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("AVATAR TRANSFORM ERROR:", err);
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }

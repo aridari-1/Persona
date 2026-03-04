@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 type CreateState =
   | "idle"
@@ -10,12 +11,37 @@ type CreateState =
   | "publishing";
 
 export default function CreatePage() {
+  const router = useRouter();
+
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [state, setState] = useState<CreateState>("idle");
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
+
+  // 🔥 Fetch remaining daily generations
+  const fetchRemaining = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+
+    const res = await fetch("/api/usage", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const result = await res.json();
+    if (res.ok) {
+      setRemaining(result.remaining);
+    }
+  };
+
+  useEffect(() => {
+    fetchRemaining();
+  }, []);
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -25,6 +51,7 @@ export default function CreatePage() {
       reader.readAsDataURL(file);
     });
 
+  // 🔥 UPDATED TRANSFORM FLOW (Token + Paywall Safe)
   const handleTransform = async () => {
     if (!file) {
       alert("Please upload a photo first.");
@@ -40,10 +67,41 @@ export default function CreatePage() {
       const token = data.session?.access_token;
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
+      // 1️⃣ Ask backend if generation is allowed
+      const permissionRes = await fetch("/api/request-generation", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const permissionData = await permissionRes.json();
+
+      if (!permissionRes.ok) {
+        setState("idle");
+
+        if (permissionRes.status === 402) {
+          alert("Free credits exhausted. Please purchase credits.");
+          router.push("/pricing"); // Optional: create this page later
+          return;
+        }
+
+        if (permissionRes.status === 429) {
+          setRemaining(0);
+        }
+
+        alert(permissionData.error || "Generation blocked");
+        return;
+      }
+
+      const generationToken = permissionData.generationToken;
+
+      // 2️⃣ Call transform endpoint with signed token
       const res = await fetch("/api/transform-posts", {
         method: "POST",
         headers: {
@@ -52,20 +110,24 @@ export default function CreatePage() {
         },
         body: JSON.stringify({
           inputDataUrl: dataUrl,
+          generationToken,
         }),
       });
 
       const result = await res.json();
 
       if (!res.ok) {
-        alert(result.error || "AI transformation failed");
         setState("idle");
+        alert(result.error || "AI transformation failed");
         return;
       }
 
       setPreviewUrl(result.output_url);
       setOutputPath(result.output_path);
       setState("preview");
+
+      await fetchRemaining();
+
     } catch (err) {
       console.error(err);
       alert("Unexpected error");
@@ -82,7 +144,7 @@ export default function CreatePage() {
     const token = data.session?.access_token;
 
     if (!token) {
-      window.location.href = "/login";
+      router.push("/login");
       return;
     }
 
@@ -108,7 +170,7 @@ export default function CreatePage() {
       return;
     }
 
-    window.location.href = "/feed";
+    router.push("/feed");
   };
 
   return (
@@ -117,6 +179,21 @@ export default function CreatePage() {
       <h1 className="text-2xl font-bold">
         Create AI Portrait
       </h1>
+
+      {/* Remaining Daily Generations */}
+      {remaining !== null && (
+        <div className="text-sm">
+          {remaining > 0 ? (
+            <span className="text-gray-400">
+              {remaining} generation{remaining !== 1 && "s"} remaining today
+            </span>
+          ) : (
+            <span className="text-red-500">
+              Daily limit reached (2 per day)
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Upload Section */}
       {state === "idle" && (
@@ -138,7 +215,8 @@ export default function CreatePage() {
 
           <button
             onClick={handleTransform}
-            className="w-full py-3 rounded-xl bg-white text-black font-semibold"
+            disabled={!file || remaining === 0}
+            className="w-full py-3 rounded-xl bg-white text-black font-semibold disabled:opacity-40"
           >
             Turn into AI
           </button>
@@ -186,11 +264,11 @@ export default function CreatePage() {
             </button>
 
             <button
-  onClick={handlePublish}
-  className="flex-1 bg-white text-black py-3 rounded-xl font-semibold"
->
-  Publish
-</button>
+              onClick={handlePublish}
+              className="flex-1 bg-white text-black py-3 rounded-xl font-semibold"
+            >
+              Publish
+            </button>
           </div>
 
         </div>

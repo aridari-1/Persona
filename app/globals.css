@@ -8,30 +8,28 @@ body {
   padding: 0;
   margin: 0;
   height: 100%;
+  background: #000000;
+  color: #ffffff;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
 }
 
-body {
-  background: radial-gradient(circle at 20% 20%, #0f0f1a, #000000);
-  color: white;
-  font-family: ui-sans-serif, system-ui;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-}
-
-/* Prevent horizontal scroll on mobile */
+/* Prevent horizontal scroll */
 * {
   box-sizing: border-box;
 }
 
+/* Images */
 img {
   max-width: 100%;
   height: auto;
   display: block;
 }
 
-/* ===== SAFE AREA SUPPORT (iPhone notch support) ===== */
+/* Safe area support */
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -40,59 +38,61 @@ img {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* ===== NEON UI SYSTEM ===== */
-.neon-text {
-  color: #00f7ff;
-  text-shadow: 0 0 8px #00f7ff;
-}
-
-.neon-button {
-  background: linear-gradient(90deg, #00f7ff, #a100ff);
-  box-shadow: 0 0 20px rgba(0, 247, 255, 0.6);
-  transition: all 0.25s ease;
-}
-
-.neon-button:active {
-  transform: scale(0.97);
-  box-shadow: 0 0 12px rgba(0, 247, 255, 0.4);
-}
-
-/* ===== GLASS EFFECT ===== */
-.glass-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-}
-
-/* ===== MOBILE TOUCH IMPROVEMENTS ===== */
-button,
-a {
-  touch-action: manipulation;
-}
-
 /* Smooth scrolling */
 html {
   scroll-behavior: smooth;
 }
 
-/* Hide scrollbars (clean mobile look) */
-::-webkit-scrollbar {
-  width: 0px;
-  height: 0px;
+/* Touch optimization */
+button,
+a {
+  touch-action: manipulation;
 }
 
-/* ===== INPUT IMPROVEMENTS (Mobile friendly) ===== */
+/* Prevent iOS zoom on inputs */
 input,
 textarea {
-  font-size: 16px; /* prevents zoom on iOS */
+  font-size: 16px;
 }
 
-/* ===== TRANSITIONS ===== */
+/* Subtle transitions */
 .transition-fast {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.15s ease-in-out;
 }
 
 .transition-smooth {
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
+}
+
+/* Optional: subtle scrollbar for desktop */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0f0f0f;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1f1f1f;
+    border-radius: 4px;
+  }
+}
+/* ===== STORY RING ANIMATION ===== */
+
+@keyframes ringPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.story-ring-active {
+  animation: ringPulse 2.5s ease-in-out infinite;
 }
