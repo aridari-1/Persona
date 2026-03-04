@@ -19,8 +19,8 @@ export default function BottomNav() {
 
   return (
     <>
-      {/* Bottom Navigation */}
-      <nav className="sticky bottom-0 z-40 border-t border-[#1a1a1a] bg-[#0f0f0f] flex pb-[env(safe-area-inset-bottom)]">
+      {/* Bottom Navigation (position handled by (app)/layout.tsx fixed wrapper) */}
+      <nav className="z-40 border-t border-[#1a1a1a] bg-[#0f0f0f] flex pb-[env(safe-area-inset-bottom)]">
 
         <Link href="/feed" className={iconClass("/feed")}>
           <Home size={22} strokeWidth={1.5} />

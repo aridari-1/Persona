@@ -7,7 +7,8 @@ html,
 body {
   padding: 0;
   margin: 0;
-  height: 100%;
+  /* Prefer min-height for mobile browser UI stability */
+  min-height: 100%;
   background: #000000;
   color: #ffffff;
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont;
@@ -17,7 +18,7 @@ body {
   overscroll-behavior: none;
 }
 
-/* Prevent horizontal scroll */
+/* Prevent horizontal scroll + consistent sizing */
 * {
   box-sizing: border-box;
 }
@@ -29,18 +30,15 @@ img {
   display: block;
 }
 
-/* Safe area support */
+/* Safe area support (with older iOS fallback) */
 .safe-top {
+  padding-top: constant(safe-area-inset-top);
   padding-top: env(safe-area-inset-top);
 }
 
 .safe-bottom {
+  padding-bottom: constant(safe-area-inset-bottom);
   padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
 }
 
 /* Touch optimization */
@@ -64,6 +62,11 @@ textarea {
   transition: all 0.25s ease;
 }
 
+/* iOS momentum scrolling helper (apply to your <main> if needed) */
+.ios-scroll {
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Optional: subtle scrollbar for desktop */
 @media (min-width: 768px) {
   ::-webkit-scrollbar {
@@ -79,8 +82,8 @@ textarea {
     border-radius: 4px;
   }
 }
-/* ===== STORY RING ANIMATION ===== */
 
+/* ===== STORY RING ANIMATION ===== */
 @keyframes ringPulse {
   0% {
     transform: scale(1);

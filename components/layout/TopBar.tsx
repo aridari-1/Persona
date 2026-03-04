@@ -13,7 +13,7 @@ export default function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-14 px-4 flex items-center justify-between bg-[#0f0f0f] border-b border-[#1a1a1a]">
+    <header className="h-14 px-4 flex items-center justify-between bg-[#0f0f0f] border-b border-[#1a1a1a]">
 
       {/* Brand */}
       <div
