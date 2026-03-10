@@ -16,29 +16,38 @@ export default function StoryViewer({
   userId: string;
   onClose: () => void;
 }) {
+
   const [stories, setStories] = useState<Story[]>([]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   useEffect(() => {
     fetchStories();
   }, [userId]);
 
   useEffect(() => {
+
     if (!stories.length) return;
 
     const timer = setTimeout(() => {
+
       if (index < stories.length - 1) {
         setIndex((prev) => prev + 1);
       } else {
         onClose();
       }
+
     }, 5000);
 
     return () => clearTimeout(timer);
+
   }, [index, stories]);
 
   const fetchStories = async () => {
+
     setLoading(true);
 
     const { data, error } = await supabase
@@ -57,41 +66,66 @@ export default function StoryViewer({
     setStories(data || []);
     setIndex(0);
     setLoading(false);
+
   };
 
   if (loading) {
+
     return (
       <div className="fixed inset-0 bg-black z-50 flex items-center justify-center text-white">
         Loading story...
       </div>
     );
+
   }
 
-  if (!stories.length) {
-    return null;
+  if (!stories.length) return null;
+
+  // 🔧 Fix corrupted paths if old stories used /posts/
+  let cleanPath = stories[index].output_path;
+
+  if (cleanPath.includes("/posts/")) {
+    cleanPath = cleanPath.replace("/posts/", "/stories/");
   }
 
-  const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-stories/${stories[index].output_path}`;
+  const imageUrl =
+    `${supabaseUrl}/storage/v1/object/public/persona-stories/${cleanPath}`;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
 
       {/* Progress Bars */}
       <div className="absolute top-3 left-3 right-3 flex space-x-1">
+
         {stories.map((_, i) => (
+
           <div
             key={i}
-            className={`h-1 flex-1 rounded transition-all duration-300 ${
+            className={`h-1 flex-1 rounded ${
               i <= index ? "bg-white" : "bg-white/30"
             }`}
           />
+
         ))}
+
       </div>
 
       {/* Story Image */}
       <img
         src={imageUrl}
-        className="h-full w-full object-cover"
+        className={`h-full w-full object-cover transition-opacity duration-300 ${
+          imageLoaded ? "opacity-100" : "opacity-0"
+        }`}
+        onLoad={() => setImageLoaded(true)}
+        onError={() => {
+
+          if (index < stories.length - 1) {
+            setIndex((prev) => prev + 1);
+          } else {
+            onClose();
+          }
+
+        }}
         alt=""
       />
 
@@ -117,6 +151,8 @@ export default function StoryViewer({
             : onClose()
         }
       />
+
     </div>
   );
+
 }

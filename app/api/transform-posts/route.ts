@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseWithToken } from "@/lib/supabaseServer";
-import { logUsage } from "@/lib/usageGuard";
 import sharp from "sharp";
 import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
 
 function parseDataUrl(dataUrl: string): Buffer {
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
@@ -47,10 +40,10 @@ export async function POST(req: Request) {
     }
 
     try {
-      const decoded: any = jwt.verify(
+      const decoded = jwt.verify(
         generationToken,
         process.env.GENERATION_TOKEN_SECRET!
-      );
+      ) as { userId: string };
 
       if (decoded.userId !== user.id) {
         return NextResponse.json(
@@ -77,74 +70,74 @@ export async function POST(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Normalize input image
+    // Convert base64 → buffer
     const originalBuffer = parseDataUrl(inputDataUrl);
 
+    // Normalize image (prevents moderation + improves results)
     const preparedImage = await sharp(originalBuffer)
       .rotate()
-      .resize(1024, 1024, { fit: "cover", position: "centre" })
+      .resize(1024, 1024, { fit: "inside" })
       .png()
       .toBuffer();
 
-    const file = await toFile(preparedImage, "input.png", {
-      type: "image/png",
-    });
+    const inputPath = `${user.id}/inputs/${Date.now()}.png`;
 
-    // 🔥 Simplified low-quality prompt (efficient for mini model)
-    const postPrompt = `
-Improve lighting and clarity.
-Balance colors.
-Keep image natural and realistic.
-Do not distort faces.
-Simple modern social media style.
-`.trim();
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("persona-inputs")
+      .upload(inputPath, preparedImage, {
+        contentType: "image/png",
+        upsert: false,
+      });
 
-    const result = await openai.images.edit({
-      model: "gpt-image-1-mini",
-      quality: "low", // 🔥 lowest cost tier
-      image: file,
-      prompt: postPrompt,
-      size: "1024x1024",
-    });
-
-    const b64 = result.data?.[0]?.b64_json;
-
-    if (!b64) {
+    if (uploadError) {
       return NextResponse.json(
-        { error: "Image generation failed" },
+        { error: uploadError.message },
         { status: 500 }
       );
     }
 
-    const rawBuffer = Buffer.from(b64, "base64");
+    // Safe prompt to avoid moderation blocks
+    const postPrompt = `
+Improve the quality of this photo.
 
-    const optimizedBuffer = await sharp(rawBuffer)
-      .resize(1024, 1024, { fit: "cover", position: "centre" })
-      .webp({ quality: 85 }) // Slightly reduced to match low-tier
-      .toBuffer();
+Enhance lighting, contrast, sharpness, and color balance.
 
-    const outputPath = `${user.id}/posts/${Date.now()}.webp`;
+Make the image look like it was taken with a high quality camera.
 
-    await supabaseAdmin.storage
-      .from("persona-posts")
-      .upload(outputPath, optimizedBuffer, {
-        contentType: "image/webp",
-        upsert: false,
-      });
+Keep the appearance natural and realistic.
 
-    const { data: publicUrl } = supabaseAdmin.storage
-      .from("persona-posts")
-      .getPublicUrl(outputPath);
+Do not create cartoon, anime, illustration, or painting styles.
+`.trim();
 
-    await logUsage(token, user.id, "post");
+    // Queue job for worker
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from("generation_jobs")
+      .insert({
+        user_id: user.id,
+        job_type: "post",
+        status: "pending",
+        prompt: postPrompt,
+        input_path: inputPath,
+      })
+      .select("id, status, created_at")
+      .single();
+
+    if (jobError || !job) {
+      return NextResponse.json(
+        { error: jobError?.message || "Failed to queue generation job." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      output_url: publicUrl.publicUrl,
-      output_path: outputPath,
+      job_id: job.id,
+      status: job.status,
+      message: "Generation queued successfully.",
     });
 
   } catch (err: any) {
-    console.error("TRANSFORM POST ERROR:", err);
+    console.error("QUEUE POST ERROR:", err);
+
     return NextResponse.json(
       { error: err?.message || "Server error" },
       { status: 500 }

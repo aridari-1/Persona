@@ -99,3 +99,23 @@ textarea {
 .story-ring-active {
   animation: ringPulse 2.5s ease-in-out infinite;
 }
+/* ===== CREATE MODAL ANIMATION ===== */
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s ease-out;
+}
+/* Prevent stacking issues with overlays */
+body {
+  position: relative;
+}

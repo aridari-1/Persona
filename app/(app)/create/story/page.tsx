@@ -10,17 +10,25 @@ type StoryState =
   | "publishing";
 
 export default function CreateStoryPage() {
+
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
+
   const [state, setState] = useState<StoryState>("idle");
+
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
+
   const [remaining, setRemaining] = useState<number | null>(null);
 
-  // ===============================
-  // 🔥 Fetch remaining generations
-  // ===============================
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  /* ===============================
+  Fetch remaining generations
+  =============================== */
+
   const fetchRemaining = async () => {
+
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) return;
@@ -32,27 +40,151 @@ export default function CreateStoryPage() {
     });
 
     const result = await res.json();
+
     if (res.ok) {
       setRemaining(result.remaining);
     }
+
   };
 
   useEffect(() => {
     fetchRemaining();
   }, []);
 
+  /* ===============================
+  Restore active generation
+  =============================== */
+
+  useEffect(() => {
+
+    const restoreJob = async () => {
+
+      const savedJob = localStorage.getItem("active_story_job");
+
+      if (!savedJob) return;
+
+      const { data: job } = await supabase
+        .from("generation_jobs")
+        .select("status, output_path")
+        .eq("id", savedJob)
+        .single();
+
+      if (!job) return;
+
+      if (job.status === "completed" && job.output_path) {
+
+        const { data } = supabase.storage
+          .from("persona-stories")
+          .getPublicUrl(job.output_path);
+
+        setPreviewUrl(data.publicUrl);
+        setOutputPath(job.output_path);
+        setState("preview");
+
+        localStorage.removeItem("active_story_job");
+
+        return;
+
+      }
+
+      if (job.status === "failed") {
+
+        localStorage.removeItem("active_story_job");
+        setState("idle");
+        return;
+
+      }
+
+      setJobId(savedJob);
+      setState("transforming");
+
+    };
+
+    restoreJob();
+
+  }, []);
+
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
+
       const reader = new FileReader();
+
       reader.onload = () => resolve(String(reader.result));
       reader.onerror = reject;
+
       reader.readAsDataURL(file);
+
     });
 
-  // ===============================
-  // 🔥 SECURE TRANSFORM FLOW
-  // ===============================
+  /* ===============================
+  Realtime generation updates
+  =============================== */
+
+  useEffect(() => {
+
+    if (!jobId) return;
+
+    const channel = supabase
+      .channel(`story-generation-${jobId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "generation_jobs",
+          filter: `id=eq.${jobId}`,
+        },
+        async (payload) => {
+
+          const job = payload.new as {
+            status: string;
+            output_path: string | null;
+            error: string | null;
+          };
+
+          if (job.status === "completed" && job.output_path) {
+
+            localStorage.removeItem("active_story_job");
+
+            const { data } = supabase.storage
+              .from("persona-stories")
+              .getPublicUrl(job.output_path);
+
+            setPreviewUrl(data.publicUrl);
+            setOutputPath(job.output_path);
+            setState("preview");
+
+          }
+
+          if (job.status === "failed") {
+
+            localStorage.removeItem("active_story_job");
+
+            alert(
+              job.error ||
+              "We couldn't process this photo. Upload a clear portrait."
+            );
+
+            setState("idle");
+
+          }
+
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+
+  }, [jobId]);
+
+  /* ===============================
+  Transform Story
+  =============================== */
+
   const handleTransform = async () => {
+
     if (!file) {
       alert("Upload a photo first.");
       return;
@@ -66,6 +198,7 @@ export default function CreateStoryPage() {
     setState("transforming");
 
     try {
+
       const dataUrl = await fileToDataUrl(file);
 
       const { data } = await supabase.auth.getSession();
@@ -76,7 +209,6 @@ export default function CreateStoryPage() {
         return;
       }
 
-      // 1️⃣ Request generation token
       const tokenRes = await fetch("/api/request-generation", {
         method: "POST",
         headers: {
@@ -87,12 +219,13 @@ export default function CreateStoryPage() {
       const tokenData = await tokenRes.json();
 
       if (!tokenRes.ok) {
-        alert(tokenData.error || "Generation not allowed");
+
+        alert(tokenData.error || "Generation blocked");
         setState("idle");
         return;
+
       }
 
-      // 2️⃣ Call transform endpoint
       const res = await fetch("/api/transform-story", {
         method: "POST",
         headers: {
@@ -108,42 +241,43 @@ export default function CreateStoryPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        if (res.status === 429) {
-          setRemaining(0);
-        }
-
-        if (res.status === 402) {
-          alert("Free pool ended. Please purchase credits.");
-        } else {
-          alert(result.error || "AI transformation failed");
-        }
 
         setState("idle");
+        alert(result.error || "AI transformation failed");
         return;
+
       }
 
-      setPreviewUrl(result.output_url);
-      setOutputPath(result.output_path);
-      setState("preview");
+      setJobId(result.job_id);
+
+      localStorage.setItem("active_story_job", result.job_id);
 
       await fetchRemaining();
 
     } catch (err) {
+
       console.error(err);
+
       alert("Unexpected error");
+
       setState("idle");
+
     }
+
   };
 
-  // ===============================
-  // 🔥 PUBLISH STORY
-  // ===============================
+  /* ===============================
+  Publish Story
+  =============================== */
+
   const handlePublish = async () => {
+
     if (!previewUrl || !outputPath) return;
 
     setState("publishing");
 
     try {
+
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
 
@@ -169,28 +303,40 @@ export default function CreateStoryPage() {
       const result = await res.json();
 
       if (!res.ok) {
+
         alert(result.error || "Publish failed");
+
         setState("preview");
         return;
+
       }
 
       window.location.href = "/feed";
 
     } catch (err) {
+
       console.error(err);
+
       alert("Publish error");
+
       setState("preview");
+
     }
+
   };
 
+  /* ===============================
+  UI
+  =============================== */
+
   return (
+
     <div className="pb-24 px-4 max-w-xl mx-auto space-y-6">
 
       <h1 className="text-2xl font-bold">
         Create Story
       </h1>
 
-      {/* Remaining */}
       {remaining !== null && (
         <div className="text-sm">
           {remaining > 0 ? (
@@ -205,24 +351,32 @@ export default function CreateStoryPage() {
         </div>
       )}
 
-      {/* Idle Upload */}
       {state === "idle" && (
+
         <div className="bg-[#111] p-4 rounded-xl space-y-4">
 
           <input
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/webp"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           />
 
+          <div className="text-xs text-gray-400">
+            Upload a clear portrait photo for best results.
+          </div>
+
           {file && (
+
             <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
+
               <img
                 src={URL.createObjectURL(file)}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt=""
               />
+
             </div>
+
           )}
 
           <button
@@ -234,28 +388,39 @@ export default function CreateStoryPage() {
           </button>
 
         </div>
+
       )}
 
-      {/* Transforming */}
       {state === "transforming" && (
+
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
           <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
-          <p className="text-gray-400">
+
+          <p className="text-gray-400 text-center">
             Creating your AI story...
+            <br />
+            You can navigate the app while it processes.
           </p>
+
         </div>
+
       )}
 
-      {/* Preview */}
       {state === "preview" && previewUrl && (
+
         <div className="space-y-4">
 
           <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
+
             <img
               src={previewUrl}
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
               alt=""
             />
+
           </div>
 
           <textarea
@@ -287,19 +452,27 @@ export default function CreateStoryPage() {
             </button>
 
           </div>
+
         </div>
+
       )}
 
-      {/* Publishing */}
       {state === "publishing" && (
+
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
           <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
+
           <p className="text-gray-400">
             Publishing...
           </p>
+
         </div>
+
       )}
 
     </div>
+
   );
+
 }

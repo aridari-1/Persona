@@ -9,23 +9,23 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-[100dvh] flex flex-col bg-black text-white">
+    <div className="h-screen flex flex-col bg-black text-white">
 
-      {/* Top */}
-      <div className="flex-shrink-0">
+      {/* TOP BAR */}
+      <header className="flex-shrink-0 border-b border-[#1a1a1a]">
         <TopBar />
-      </div>
+      </header>
 
-      {/* Scrollable content */}
+      {/* SCROLL AREA */}
       <main className="flex-1 overflow-y-auto ios-scroll">
         {children}
       </main>
 
-      {/* Bottom */}
-      <div className="flex-shrink-0">
+      {/* BOTTOM NAV */}
+      <footer className="flex-shrink-0 border-t border-[#1a1a1a]">
         <BottomNav />
-      </div>
+      </footer>
 
     </div>
   );
-}
+} 

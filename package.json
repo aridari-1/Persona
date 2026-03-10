@@ -4,16 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "worker:jobs": "node worker/process-generation-jobs.js",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.95.3",
+    "dotenv": "^17.2.3",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
-    "openai": "^6.22.0",
+    "openai": "^6.27.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-turnstile": "^1.1.5",

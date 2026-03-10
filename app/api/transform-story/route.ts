@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseWithToken } from "@/lib/supabaseServer";
-import { logUsage } from "@/lib/usageGuard";
 import sharp from "sharp";
 import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
 
 function parseDataUrl(dataUrl: string): Buffer {
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
@@ -21,16 +14,20 @@ function parseDataUrl(dataUrl: string): Buffer {
 
 export async function POST(req: Request) {
   try {
+
     // ===============================
-    // 1️⃣ AUTH CHECK
+    // AUTH
     // ===============================
     const auth = req.headers.get("Authorization") || "";
+
     if (!auth.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = auth.replace("Bearer ", "");
+
     const supabase = supabaseWithToken(token);
+
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
 
@@ -39,7 +36,7 @@ export async function POST(req: Request) {
     }
 
     // ===============================
-    // 2️⃣ READ BODY
+    // BODY
     // ===============================
     const { inputDataUrl, generationToken } = await req.json();
 
@@ -50,9 +47,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ===============================
-    // 3️⃣ VERIFY TOKEN
-    // ===============================
     try {
       const decoded: any = jwt.verify(
         generationToken,
@@ -79,94 +73,88 @@ export async function POST(req: Request) {
       );
     }
 
-    // ===============================
-    // 4️⃣ IMAGE PREP (Vertical Story)
-    // ===============================
-    const originalBuffer = parseDataUrl(inputDataUrl);
-
-    const preparedImage = await sharp(originalBuffer)
-      .rotate()
-      .resize(1080, 1920, { fit: "cover", position: "centre" })
-      .png()
-      .toBuffer();
-
-    const file = await toFile(preparedImage, "story.png", {
-      type: "image/png",
-    });
-
-    // 🔥 Simplified low-cost story prompt
-    const storyPrompt = `
-Improve lighting and brightness.
-Enhance clarity slightly.
-Balance colors naturally.
-Keep image realistic.
-Do not distort faces.
-Simple vertical social media story style.
-`.trim();
-
-    // ===============================
-    // 5️⃣ AI TRANSFORM (Mini Low)
-    // ===============================
-    const result = await openai.images.edit({
-      model: "gpt-image-1-mini",
-      quality: "low",
-      image: file,
-      prompt: storyPrompt,
-      size: "1024x1024", // Mini low cost tier
-    });
-
-    const b64 = result.data?.[0]?.b64_json;
-
-    if (!b64) {
-      return NextResponse.json(
-        { error: "Story generation failed" },
-        { status: 500 }
-      );
-    }
-
-    const rawBuffer = Buffer.from(b64, "base64");
-
-    const optimized = await sharp(rawBuffer)
-      .resize(1080, 1920, { fit: "cover", position: "centre" })
-      .webp({ quality: 80 }) // Slightly reduced for free tier
-      .toBuffer();
-
-    // ===============================
-    // 6️⃣ STORAGE UPLOAD
-    // ===============================
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const outputPath = `${user.id}/stories/${Date.now()}.webp`;
+    // ===============================
+    // PREP IMAGE (vertical story)
+    // ===============================
+    const originalBuffer = parseDataUrl(inputDataUrl);
 
-    await supabaseAdmin.storage
-      .from("persona-stories")
-      .upload(outputPath, optimized, {
-        contentType: "image/webp",
+    const preparedImage = await sharp(originalBuffer)
+      .rotate()
+      .resize(1080, 1920, { fit: "cover" })
+      .png()
+      .toBuffer();
+
+    const inputPath = `${user.id}/inputs/${Date.now()}.png`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("persona-inputs")
+      .upload(inputPath, preparedImage, {
+        contentType: "image/png",
         upsert: false,
       });
 
-    const { data } = supabaseAdmin.storage
-      .from("persona-stories")
-      .getPublicUrl(outputPath);
+    if (uploadError) {
+      return NextResponse.json(
+        { error: uploadError.message },
+        { status: 500 }
+      );
+    }
 
     // ===============================
-    // 7️⃣ LOG USAGE
+    // PROMPT
     // ===============================
-    await logUsage(token, user.id, "story");
+    const storyPrompt = `
+Improve the overall quality of this photo.
+
+Enhance lighting, contrast, and color balance.
+Make the image sharper and clearer.
+
+Keep the appearance natural and realistic.
+
+Do not create cartoon, anime, illustration, or painting styles.
+`.trim();
+
+    // ===============================
+    // QUEUE GENERATION JOB
+    // ===============================
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from("generation_jobs")
+      .insert({
+        user_id: user.id,
+        job_type: "story",
+        status: "pending",
+        prompt: storyPrompt,
+        input_path: inputPath,
+      })
+      .select("id, status, created_at")
+      .single();
+
+    if (jobError || !job) {
+      return NextResponse.json(
+        { error: jobError?.message || "Failed to queue story generation." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      output_url: data.publicUrl,
-      output_path: outputPath,
+      job_id: job.id,
+      status: job.status,
+      message: "Story generation queued.",
     });
 
   } catch (err: any) {
-    console.error("TRANSFORM STORY ERROR:", err);
+
+    console.error("QUEUE STORY ERROR:", err);
+
     return NextResponse.json(
       { error: err?.message || "Server error" },
       { status: 500 }
     );
+
   }
 }

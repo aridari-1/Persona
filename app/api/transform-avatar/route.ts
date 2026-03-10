@@ -1,17 +1,10 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseWithToken } from "@/lib/supabaseServer";
-import { logUsage } from "@/lib/usageGuard";
 import sharp from "sharp";
 import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
 
 function parseDataUrl(dataUrl: string): Buffer {
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
@@ -21,16 +14,20 @@ function parseDataUrl(dataUrl: string): Buffer {
 
 export async function POST(req: Request) {
   try {
+
     // ===============================
-    // 1️⃣ AUTH CHECK
+    // AUTH
     // ===============================
     const auth = req.headers.get("Authorization") || "";
+
     if (!auth.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const token = auth.replace("Bearer ", "");
+
     const supabase = supabaseWithToken(token);
+
     const { data: userRes } = await supabase.auth.getUser();
     const user = userRes?.user;
 
@@ -39,7 +36,7 @@ export async function POST(req: Request) {
     }
 
     // ===============================
-    // 2️⃣ READ BODY
+    // BODY
     // ===============================
     const { inputDataUrl, generationToken } = await req.json();
 
@@ -50,9 +47,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // ===============================
-    // 3️⃣ VERIFY SIGNED GENERATION TOKEN
-    // ===============================
     try {
       const decoded: any = jwt.verify(
         generationToken,
@@ -79,111 +73,88 @@ export async function POST(req: Request) {
       );
     }
 
-    // ===============================
-    // 4️⃣ IMAGE PREP
-    // ===============================
-    const originalBuffer = parseDataUrl(inputDataUrl);
-
-    const preparedImage = await sharp(originalBuffer)
-      .rotate()
-      .resize(1024, 1024, { fit: "cover", position: "centre" })
-      .png()
-      .toBuffer();
-
-    const file = await toFile(preparedImage, "avatar.png", {
-      type: "image/png",
-    });
-
-    // ===============================
-    // 5️⃣ AI PROMPT
-    // ===============================
-    const avatarPrompt = `
-Create a high-quality professional AI portrait.
-Preserve identity exactly.
-Improve lighting, clarity, sharpness.
-Do NOT change ethnicity, age, or facial geometry.
-No cartoon, no fantasy.
-Studio-level portrait.
-
-Identity constraints:
-- Keep identical facial structure
-- Preserve eye shape and spacing
-- Preserve nose shape and proportions
-- Preserve lip shape and mouth width
-- Preserve hairline and hairstyle
-- Preserve natural skin tone
-- Maintain realistic face proportions
-`.trim();
-
-    // ===============================
-    // 6️⃣ AI GENERATION
-    // ===============================
-    const result = await openai.images.edit({
-      model: "gpt-image-1",
-      image: file,
-      prompt: avatarPrompt,
-      size: "1024x1024",
-    });
-
-    const b64 = result.data?.[0]?.b64_json;
-
-    if (!b64) {
-      return NextResponse.json(
-        { error: "Avatar generation failed" },
-        { status: 500 }
-      );
-    }
-
-    const rawBuffer = Buffer.from(b64, "base64");
-
-    const optimized = await sharp(rawBuffer)
-      .resize(512, 512, { fit: "cover", position: "centre" })
-      .webp({ quality: 90 })
-      .toBuffer();
-
-    // ===============================
-    // 7️⃣ STORAGE UPLOAD
-    // ===============================
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const path = `${user.id}/avatar.webp`;
+    // ===============================
+    // IMAGE PREP
+    // ===============================
+    const originalBuffer = parseDataUrl(inputDataUrl);
 
-    await supabaseAdmin.storage
-      .from("persona-avatars")
-      .upload(path, optimized, {
-        contentType: "image/webp",
-        upsert: true,
+    const preparedImage = await sharp(originalBuffer)
+      .rotate()
+      .resize(1024, 1024, { fit: "cover" })
+      .png()
+      .toBuffer();
+
+    const inputPath = `${user.id}/inputs/${Date.now()}.png`;
+
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from("persona-inputs")
+      .upload(inputPath, preparedImage, {
+        contentType: "image/png",
+        upsert: false,
       });
 
-    const { data } = supabaseAdmin.storage
-      .from("persona-avatars")
-      .getPublicUrl(path);
+    if (uploadError) {
+      return NextResponse.json(
+        { error: uploadError.message },
+        { status: 500 }
+      );
+    }
 
     // ===============================
-    // 8️⃣ UPDATE PROFILE
+    // PROMPT
     // ===============================
-    await supabase
-      .from("profiles")
-      .update({ avatar_url: data.publicUrl })
-      .eq("id", user.id);
+    const avatarPrompt = `
+Improve the quality of this photo.
+
+Enhance lighting, clarity, and color balance.
+Sharpen details and improve contrast.
+
+Keep the appearance natural and realistic.
+
+Do not create cartoon, anime, illustration, or painting styles.
+`.trim();
 
     // ===============================
-    // 9️⃣ LOG USAGE (AFTER SUCCESS)
+    // QUEUE GENERATION
     // ===============================
-    await logUsage(token, user.id, "avatar");
+    const { data: job, error: jobError } = await supabaseAdmin
+      .from("generation_jobs")
+      .insert({
+        user_id: user.id,
+        job_type: "avatar",
+        status: "pending",
+        prompt: avatarPrompt,
+        input_path: inputPath,
+      })
+      .select("id, status, created_at")
+      .single();
+
+    if (jobError || !job) {
+      return NextResponse.json(
+        { error: jobError?.message || "Failed to queue avatar generation." },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
-      avatar_url: data.publicUrl,
+      job_id: job.id,
+      status: job.status,
+      message: "Avatar generation queued.",
     });
 
   } catch (err: any) {
-    console.error("AVATAR TRANSFORM ERROR:", err);
+
+    console.error("QUEUE AVATAR ERROR:", err);
+
     return NextResponse.json(
       { error: err?.message || "Server error" },
       { status: 500 }
     );
+
   }
 }

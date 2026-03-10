@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
+import Image from "next/image";
 
 const PAGE_SIZE = 18;
 
@@ -23,16 +24,20 @@ interface Post {
 }
 
 export default function ProfilePage() {
+
   const router = useRouter();
   const params = useParams();
   const usernameParam = (params?.username as string) || "";
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postCount, setPostCount] = useState(0);
+
   const [loading, setLoading] = useState(true);
 
   const [isOwnProfile, setIsOwnProfile] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
 
@@ -41,11 +46,14 @@ export default function ProfilePage() {
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
   useEffect(() => {
     fetchProfile();
   }, [usernameParam]);
 
   useEffect(() => {
+
     if (!loadMoreRef.current || !hasMore) return;
 
     const observer = new IntersectionObserver(
@@ -54,17 +62,19 @@ export default function ProfilePage() {
           loadMorePosts(profile.id);
         }
       },
-      { rootMargin: "500px" }
+      { rootMargin: "400px" }
     );
 
     observer.observe(loadMoreRef.current);
+
     return () => observer.disconnect();
+
   }, [profile, hasMore, loadingMore]);
 
-  const fetchProfile = async () => {
+  async function fetchProfile() {
+
     setLoading(true);
     setPosts([]);
-    setHasMore(true);
 
     const { data: session } = await supabase.auth.getSession();
     const user = session.session?.user;
@@ -92,22 +102,31 @@ export default function ProfilePage() {
 
     await loadInitialPosts(profileData.id);
 
-    const [{ count: followers }, { count: following }] = await Promise.all([
-      supabase
-        .from("follows")
-        .select("*", { count: "estimated", head: true })
-        .eq("following_id", profileData.id),
+    const [{ count: followers }, { count: following }, { count: postTotal }] =
+      await Promise.all([
 
-      supabase
-        .from("follows")
-        .select("*", { count: "estimated", head: true })
-        .eq("follower_id", profileData.id),
-    ]);
+        supabase
+          .from("follows")
+          .select("*", { count: "estimated", head: true })
+          .eq("following_id", profileData.id),
+
+        supabase
+          .from("follows")
+          .select("*", { count: "estimated", head: true })
+          .eq("follower_id", profileData.id),
+
+        supabase
+          .from("posts")
+          .select("*", { count: "estimated", head: true })
+          .eq("user_id", profileData.id),
+      ]);
 
     setFollowersCount(followers || 0);
     setFollowingCount(following || 0);
+    setPostCount(postTotal || 0);
 
     if (!own) {
+
       const { data: followRow } = await supabase
         .from("follows")
         .select("*")
@@ -116,18 +135,21 @@ export default function ProfilePage() {
         .maybeSingle();
 
       setIsFollowing(!!followRow);
+
     }
 
     setLoading(false);
-  };
 
-  const loadInitialPosts = async (userId: string) => {
+  }
+
+  async function loadInitialPosts(userId: string) {
+
     const { data } = await supabase
       .from("posts")
       .select(`
         id,
         created_at,
-        post_media:post_media (
+        post_media (
           output_path
         )
       `)
@@ -135,13 +157,13 @@ export default function ProfilePage() {
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
 
-    console.log("PROFILE POSTS:", data);
-
     setPosts((data as Post[]) || []);
     setHasMore((data?.length || 0) === PAGE_SIZE);
-  };
 
-  const loadMorePosts = async (userId: string) => {
+  }
+
+  async function loadMorePosts(userId: string) {
+
     if (loadingMore || !hasMore) return;
 
     const lastPost = posts[posts.length - 1];
@@ -154,7 +176,7 @@ export default function ProfilePage() {
       .select(`
         id,
         created_at,
-        post_media:post_media (
+        post_media (
           output_path
         )
       `)
@@ -164,23 +186,29 @@ export default function ProfilePage() {
       .limit(PAGE_SIZE);
 
     if (data?.length) {
+
       setPosts((prev) => [...prev, ...(data as Post[])]);
       setHasMore(data.length === PAGE_SIZE);
+
     } else {
       setHasMore(false);
     }
 
     setLoadingMore(false);
-  };
 
-  const handleFollowToggle = async () => {
+  }
+
+  async function handleFollowToggle() {
+
     const { data: session } = await supabase.auth.getSession();
     const user = session.session?.user;
+
     if (!user || !profile) return;
 
     if (user.id === profile.id) return;
 
     if (isFollowing) {
+
       await supabase
         .from("follows")
         .delete()
@@ -189,7 +217,9 @@ export default function ProfilePage() {
 
       setIsFollowing(false);
       setFollowersCount((c) => Math.max(c - 1, 0));
+
     } else {
+
       await supabase.from("follows").insert({
         follower_id: user.id,
         following_id: profile.id,
@@ -197,13 +227,15 @@ export default function ProfilePage() {
 
       setIsFollowing(true);
       setFollowersCount((c) => c + 1);
+
     }
-  };
+
+  }
 
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center text-gray-500">
-        Loading...
+        Loading profile...
       </div>
     );
   }
@@ -211,48 +243,57 @@ export default function ProfilePage() {
   if (!profile) return null;
 
   return (
+
     <div className="pb-28 max-w-2xl mx-auto">
 
-      {/* HEADER */}
+      {/* PROFILE HEADER */}
+
       <div className="px-6 pt-10 space-y-6">
 
         <div className="flex items-center justify-between">
 
-          {/* Avatar */}
-          <div className="w-24 h-24 rounded-full overflow-hidden bg-[#0f0f0f]">
-            {profile.avatar_url && (
-              <img
+          <div className="relative w-24 h-24 rounded-full overflow-hidden bg-[#0f0f0f]">
+
+            {profile.avatar_url ? (
+              <Image
                 src={profile.avatar_url}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover"
-                alt=""
+                alt="avatar"
+                fill
+                sizes="96px"
+                className="object-cover"
+                priority
               />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+                No Avatar
+              </div>
             )}
+
           </div>
 
-          {/* Stats */}
           <div className="flex space-x-10 text-center">
+
             <div>
-              <p className="text-[15px] font-medium">{posts.length}</p>
+              <p className="text-[16px] font-semibold">{postCount}</p>
               <p className="text-[11px] text-gray-500">Posts</p>
             </div>
 
             <div>
-              <p className="text-[15px] font-medium">{followersCount}</p>
+              <p className="text-[16px] font-semibold">{followersCount}</p>
               <p className="text-[11px] text-gray-500">Followers</p>
             </div>
 
             <div>
-              <p className="text-[15px] font-medium">{followingCount}</p>
+              <p className="text-[16px] font-semibold">{followingCount}</p>
               <p className="text-[11px] text-gray-500">Following</p>
             </div>
+
           </div>
 
         </div>
 
-        {/* Name + Bio */}
         <div className="space-y-1">
+
           <h1 className="text-[16px] font-semibold">{profile.display_name}</h1>
 
           <p className="text-[13px] text-gray-500">
@@ -260,13 +301,13 @@ export default function ProfilePage() {
           </p>
 
           {profile.bio && (
-            <p className="text-[14px] text-gray-300 mt-2 leading-relaxed">
+            <p className="text-[14px] text-gray-300 mt-2">
               {profile.bio}
             </p>
           )}
+
         </div>
 
-        {/* Action Button */}
         {isOwnProfile ? (
           <button
             onClick={() => router.push("/profile/edit")}
@@ -279,8 +320,8 @@ export default function ProfilePage() {
             onClick={handleFollowToggle}
             className={`w-full py-2.5 rounded-lg text-[13px] ${
               isFollowing
-                ? "border border-[#1e1e1e] hover:bg-[#141414]"
-                : "bg-white text-black hover:opacity-90"
+                ? "border border-[#1e1e1e]"
+                : "bg-white text-black"
             }`}
           >
             {isFollowing ? "Following" : "Follow"}
@@ -289,32 +330,44 @@ export default function ProfilePage() {
 
       </div>
 
-      {/* Divider */}
       <div className="border-t border-[#1a1a1a] mt-10" />
 
       {/* POSTS GRID */}
+
       <div className="grid grid-cols-3 gap-[2px] mt-6">
+
         {posts.map((post) => {
+
           const media = post.post_media?.[0];
           if (!media) return null;
 
-          const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-posts/${media.output_path}`;
+          const imageUrl =
+            `${supabaseUrl}/storage/v1/object/public/persona-posts/${media.output_path}`;
 
           return (
-            <div key={post.id} className="aspect-square overflow-hidden bg-black">
-              <img
+
+            <div
+              key={post.id}
+              onClick={() => router.push(`/post/${post.id}`)}
+              className="relative aspect-square overflow-hidden bg-black cursor-pointer group"
+            >
+
+              <Image
                 src={imageUrl}
-                loading="lazy"
-                decoding="async"
-                className="w-full h-full object-cover hover:scale-[1.03] transition"
-                alt=""
+                alt="post"
+                fill
+                sizes="33vw"
+                className="object-cover group-hover:scale-[1.05] transition duration-300"
               />
+
             </div>
+
           );
+
         })}
+
       </div>
 
-      {/* Infinite scroll trigger */}
       <div ref={loadMoreRef} className="h-10" />
 
       {loadingMore && (
@@ -330,5 +383,7 @@ export default function ProfilePage() {
       )}
 
     </div>
+
   );
+
 }

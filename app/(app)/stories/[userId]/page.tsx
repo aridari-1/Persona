@@ -13,31 +13,40 @@ interface Story {
 }
 
 export default function StoryPage() {
+
   const { userId } = useParams();
   const router = useRouter();
 
   const [stories, setStories] = useState<Story[]>([]);
   const [index, setIndex] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   useEffect(() => {
     fetchStories();
   }, []);
 
   useEffect(() => {
+
     if (!stories.length) return;
 
     const timer = setTimeout(() => {
+
       if (index < stories.length - 1) {
         setIndex((prev) => prev + 1);
       } else {
         router.back();
       }
+
     }, 5000);
 
     return () => clearTimeout(timer);
+
   }, [index, stories]);
 
   const fetchStories = async () => {
+
     const { data } = await supabase
       .from("stories")
       .select(`
@@ -55,50 +64,75 @@ export default function StoryPage() {
   };
 
   if (!stories.length) {
+
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center text-white">
         No active stories
       </div>
     );
+
   }
 
   const media = stories[index]?.story_media?.[0];
-  if (!media) return null;
 
-  const imageUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/persona-stories/${media.output_path}`;
+  if (!media?.output_path) {
+    return null;
+  }
+
+  // FIX incorrect path if it accidentally contains /posts/
+  let cleanPath = media.output_path;
+
+  if (cleanPath.includes("/posts/")) {
+    cleanPath = cleanPath.replace("/posts/", "/stories/");
+  }
+
+  const imageUrl =
+    `${supabaseUrl}/storage/v1/object/public/persona-stories/${cleanPath}`;
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
 
       {/* Progress Bars */}
-      <div className="absolute top-4 left-4 right-4 flex space-x-1">
+      <div className="absolute top-4 left-4 right-4 flex space-x-1 z-20">
+
         {stories.map((_, i) => (
+
           <div
             key={i}
             className={`h-1 flex-1 rounded ${
               i <= index ? "bg-white" : "bg-white/30"
             }`}
           />
+
         ))}
+
       </div>
 
+      {/* IMAGE */}
       <img
         src={imageUrl}
-        className="h-full w-full object-cover"
+        className={`h-full w-full object-cover transition-opacity duration-300 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+        onLoad={() => setLoaded(true)}
         alt=""
       />
 
+      {/* CLOSE BUTTON */}
       <button
         onClick={() => router.back()}
-        className="absolute top-6 right-6 text-white text-2xl"
+        className="absolute top-6 right-6 text-white text-2xl z-20"
       >
         ✕
       </button>
 
+      {/* LEFT TAP */}
       <div
         className="absolute left-0 top-0 h-full w-1/2"
         onClick={() => setIndex((prev) => Math.max(0, prev - 1))}
       />
+
+      {/* RIGHT TAP */}
       <div
         className="absolute right-0 top-0 h-full w-1/2"
         onClick={() =>
@@ -107,6 +141,8 @@ export default function StoryPage() {
             : router.back()
         }
       />
+
     </div>
   );
+
 }
