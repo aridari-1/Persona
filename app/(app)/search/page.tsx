@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 type Profile = {
   id: string;
@@ -164,7 +165,7 @@ export default function SearchPage() {
         </p>
       )}
 
-      {/* RESULTS */}
+      {/* EMPTY RESULT */}
 
       {!loading && query && results.length === 0 && (
 
@@ -181,17 +182,38 @@ export default function SearchPage() {
           <div
             key={user.id}
             onClick={() => openProfile(user)}
-            className="flex items-center space-x-4 p-3 rounded-xl bg-[#111] hover:bg-[#1a1a1a] cursor-pointer transition"
+            className="flex items-center space-x-3 p-3 rounded-xl bg-[#111] hover:bg-[#1a1a1a] cursor-pointer transition"
           >
 
-            <img
-              src={
-                user.avatar_url ||
-                "/default-avatar.png"
-              }
-              className="w-11 h-11 rounded-full object-cover"
-              alt=""
-            />
+            {/* Avatar */}
+
+            <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0f0f0f]">
+
+              {user.avatar_url ? (
+
+                <Image
+                  src={user.avatar_url}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                />
+
+              ) : (
+
+                <Image
+                  src="/default-avatar.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="object-cover"
+                />
+
+              )}
+
+            </div>
+
+            {/* User Info */}
 
             <div className="flex flex-col">
 

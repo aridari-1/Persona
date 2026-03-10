@@ -18,8 +18,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function downloadInput(inputPath) {
+/* ------------------------------------
+DOWNLOAD INPUT IMAGE
+------------------------------------ */
 
+async function downloadInput(inputPath) {
   const { data, error } = await supabase.storage
     .from("persona-inputs")
     .download(inputPath);
@@ -30,7 +33,7 @@ async function downloadInput(inputPath) {
 }
 
 /* ------------------------------------
-IMAGE GENERATION (GPT IMAGE MINI)
+IMAGE GENERATION
 ------------------------------------ */
 
 async function generateImage(file, prompt, size) {
@@ -52,7 +55,7 @@ async function generateImage(file, prompt, size) {
 }
 
 /* ------------------------------------
-PROCESS JOB
+PROCESS ONE JOB
 ------------------------------------ */
 
 async function processJob(job) {
@@ -66,7 +69,7 @@ async function processJob(job) {
     }
 
     /* ------------------------------
-    DOWNLOAD INPUT IMAGE
+    DOWNLOAD IMAGE
     ------------------------------ */
 
     const inputBuffer = await downloadInput(job.input_path);
@@ -82,13 +85,13 @@ async function processJob(job) {
     });
 
     /* ------------------------------
-    DETERMINE SIZE
+    DETERMINE GENERATION SIZE
     ------------------------------ */
 
     let generationSize = "1024x1024";
 
     if (job.job_type === "story") {
-      generationSize = "1024x1536"; // vertical
+      generationSize = "1024x1536";
     }
 
     /* ------------------------------
@@ -177,7 +180,7 @@ Keep the appearance natural and realistic.
     }
 
     /* ------------------------------
-    UPLOAD IMAGE
+    UPLOAD RESULT
     ------------------------------ */
 
     const { error: uploadError } = await supabase.storage
@@ -192,7 +195,7 @@ Keep the appearance natural and realistic.
     console.log("Uploaded:", bucket, outputPath);
 
     /* ------------------------------
-    UPDATE PROFILE AVATAR
+    UPDATE AVATAR PROFILE
     ------------------------------ */
 
     if (job.job_type === "avatar") {
@@ -241,7 +244,7 @@ Keep the appearance natural and realistic.
 }
 
 /* ------------------------------------
-WORKER LOOP
+WORKER LOOP (PARALLEL JOBS)
 ------------------------------------ */
 
 async function workerLoop() {
@@ -255,24 +258,30 @@ async function workerLoop() {
       .select("*")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
-      .limit(1);
+      .limit(5);
 
     if (!jobs || jobs.length === 0) {
       await sleep(1500);
       continue;
     }
 
-    const job = jobs[0];
+    await Promise.all(
 
-    const { error } = await supabase
-      .from("generation_jobs")
-      .update({ status: "processing" })
-      .eq("id", job.id)
-      .eq("status", "pending");
+      jobs.map(async (job) => {
 
-    if (!error) {
-      await processJob(job);
-    }
+        const { error } = await supabase
+          .from("generation_jobs")
+          .update({ status: "processing" })
+          .eq("id", job.id)
+          .eq("status", "pending");
+
+        if (!error) {
+          await processJob(job);
+        }
+
+      })
+
+    );
 
   }
 

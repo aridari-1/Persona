@@ -9,6 +9,7 @@ interface Props {
   initialLiked: boolean;
   initialCount: number;
   userId: string;
+  postOwnerId?: string; // used for notifications
 }
 
 export default function LikeButton({
@@ -16,6 +17,7 @@ export default function LikeButton({
   initialLiked,
   initialCount,
   userId,
+  postOwnerId,
 }: Props) {
 
   const [liked, setLiked] = useState(initialLiked);
@@ -28,38 +30,63 @@ export default function LikeButton({
 
     setLoading(true);
 
-    if (liked) {
+    try {
 
-      const { error } = await supabase
-        .from("likes")
-        .delete()
-        .eq("user_id", userId)
-        .eq("target_type", "post")
-        .eq("target_id", postId);
+      if (liked) {
 
-      if (!error) {
+        const { error } = await supabase
+          .from("likes")
+          .delete()
+          .eq("user_id", userId)
+          .eq("target_type", "post")
+          .eq("target_id", postId);
+
+        if (error) throw error;
+
         setLiked(false);
         setCount((c) => Math.max(c - 1, 0));
-      }
 
-    } else {
+      } else {
 
-      const { error } = await supabase
-        .from("likes")
-        .insert({
-          user_id: userId,
-          target_type: "post",
-          target_id: postId,
-        });
+        const { error } = await supabase
+          .from("likes")
+          .insert({
+            user_id: userId,
+            target_type: "post",
+            target_id: postId,
+          });
 
-      if (!error) {
+        if (error) throw error;
+
         setLiked(true);
         setCount((c) => c + 1);
+
+        // ======================
+        // CREATE NOTIFICATION
+        // ======================
+
+        if (postOwnerId && postOwnerId !== userId) {
+
+          await supabase.from("notifications").insert({
+            type: "like",
+            actor_id: userId,
+            recipient_id: postOwnerId,
+            post_id: postId,
+            is_read: false,
+          });
+
+        }
+
       }
+
+    } catch (err) {
+
+      console.error("Like error:", err);
 
     }
 
     setLoading(false);
+
   };
 
   return (

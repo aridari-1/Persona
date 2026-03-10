@@ -232,12 +232,52 @@ export default function ProfilePage() {
 
   }
 
+  async function handleMessage() {
+
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+
+    if (!token || !profile) return;
+
+    const res = await fetch("/api/start-conversation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        targetUserId: profile.id,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (res.ok) {
+      router.push(`/messages/${result.conversation_id}`);
+    }
+
+  }
+
+  function handleShareProfile() {
+
+    if (!profile) return;
+
+    const url = `${window.location.origin}/profile/${profile.username}`;
+
+    navigator.clipboard.writeText(url);
+
+    alert("Profile link copied!");
+
+  }
+
   if (loading) {
+
     return (
       <div className="h-screen flex items-center justify-center text-gray-500">
         Loading profile...
       </div>
     );
+
   }
 
   if (!profile) return null;
@@ -246,46 +286,49 @@ export default function ProfilePage() {
 
     <div className="pb-28 max-w-2xl mx-auto">
 
-      {/* PROFILE HEADER */}
+      <div className="px-6 pt-10 space-y-5">
 
-      <div className="px-6 pt-10 space-y-6">
+        <div className="flex items-center gap-6">
 
-        <div className="flex items-center justify-between">
-
-          <div className="relative w-24 h-24 rounded-full overflow-hidden bg-[#0f0f0f]">
+          <div className="w-24 h-24 rounded-full overflow-hidden bg-[#0f0f0f] shrink-0">
 
             {profile.avatar_url ? (
+
               <Image
-                src={profile.avatar_url}
+                src={String(profile.avatar_url)}
                 alt="avatar"
-                fill
-                sizes="96px"
-                className="object-cover"
+                width={96}
+                height={96}
+                className="object-cover w-full h-full"
                 priority
+                unoptimized
               />
+
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+
+              <div className="flex items-center justify-center w-full h-full text-gray-400 text-sm">
                 No Avatar
               </div>
+
             )}
 
           </div>
 
-          <div className="flex space-x-10 text-center">
+          <div className="flex flex-1 justify-between text-center">
 
             <div>
               <p className="text-[16px] font-semibold">{postCount}</p>
-              <p className="text-[11px] text-gray-500">Posts</p>
+              <p className="text-[12px] text-gray-500">Posts</p>
             </div>
 
             <div>
               <p className="text-[16px] font-semibold">{followersCount}</p>
-              <p className="text-[11px] text-gray-500">Followers</p>
+              <p className="text-[12px] text-gray-500">Followers</p>
             </div>
 
             <div>
               <p className="text-[16px] font-semibold">{followingCount}</p>
-              <p className="text-[11px] text-gray-500">Following</p>
+              <p className="text-[12px] text-gray-500">Following</p>
             </div>
 
           </div>
@@ -294,14 +337,19 @@ export default function ProfilePage() {
 
         <div className="space-y-1">
 
-          <h1 className="text-[16px] font-semibold">{profile.display_name}</h1>
+          <h1 className="text-[16px] font-semibold">
+            {profile.display_name}
+          </h1>
 
-          <p className="text-[13px] text-gray-500">
+          <p
+            className="text-[13px] text-gray-500 cursor-pointer hover:text-white"
+            onClick={() => router.push(`/profile/${profile.username}`)}
+          >
             @{profile.username}
           </p>
 
           {profile.bio && (
-            <p className="text-[14px] text-gray-300 mt-2">
+            <p className="text-[14px] text-gray-300 leading-relaxed">
               {profile.bio}
             </p>
           )}
@@ -309,30 +357,54 @@ export default function ProfilePage() {
         </div>
 
         {isOwnProfile ? (
-          <button
-            onClick={() => router.push("/profile/edit")}
-            className="w-full border border-[#1e1e1e] py-2.5 rounded-lg text-[13px] hover:bg-[#141414]"
-          >
-            Edit Profile
-          </button>
+
+          <div className="flex gap-3">
+
+            <button
+              onClick={() => router.push("/profile/edit")}
+              className="flex-1 border border-[#1e1e1e] py-2.5 rounded-lg text-[13px]"
+            >
+              Edit Profile
+            </button>
+
+            <button
+              onClick={handleShareProfile}
+              className="flex-1 border border-[#1e1e1e] py-2.5 rounded-lg text-[13px]"
+            >
+              Share Profile
+            </button>
+
+          </div>
+
         ) : (
-          <button
-            onClick={handleFollowToggle}
-            className={`w-full py-2.5 rounded-lg text-[13px] ${
-              isFollowing
-                ? "border border-[#1e1e1e]"
-                : "bg-white text-black"
-            }`}
-          >
-            {isFollowing ? "Following" : "Follow"}
-          </button>
+
+          <div className="flex gap-3">
+
+            <button
+              onClick={handleFollowToggle}
+              className={`flex-1 py-2.5 rounded-lg text-[13px] ${
+                isFollowing
+                  ? "border border-[#1e1e1e]"
+                  : "bg-white text-black"
+              }`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+
+            <button
+              onClick={handleMessage}
+              className="flex-1 border border-[#1e1e1e] py-2.5 rounded-lg text-[13px]"
+            >
+              Message
+            </button>
+
+          </div>
+
         )}
 
       </div>
 
       <div className="border-t border-[#1a1a1a] mt-10" />
-
-      {/* POSTS GRID */}
 
       <div className="grid grid-cols-3 gap-[2px] mt-6">
 
@@ -358,6 +430,7 @@ export default function ProfilePage() {
                 fill
                 sizes="33vw"
                 className="object-cover group-hover:scale-[1.05] transition duration-300"
+                unoptimized
               />
 
             </div>
@@ -373,12 +446,6 @@ export default function ProfilePage() {
       {loadingMore && (
         <div className="flex justify-center py-6 text-gray-500">
           Loading more...
-        </div>
-      )}
-
-      {!hasMore && posts.length > 0 && (
-        <div className="flex justify-center py-6 text-gray-600 text-sm">
-          End of posts
         </div>
       )}
 
