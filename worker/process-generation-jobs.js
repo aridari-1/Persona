@@ -36,11 +36,14 @@ async function resetStuckJobs() {
     .from("generation_jobs")
     .update({ status: "pending" })
     .eq("status", "processing")
-    .lt("updated_at", cutoff);
+    .lt("created_at", cutoff);
 
   if (!error) {
     console.log("Checked for stuck jobs");
+  } else {
+    console.error("Reset stuck jobs error:", error.message);
   }
+
 }
 
 /* ------------------------------------
@@ -56,6 +59,7 @@ async function downloadInput(inputPath) {
   if (error) throw error;
 
   return Buffer.from(await data.arrayBuffer());
+
 }
 
 /* ------------------------------------
@@ -76,6 +80,7 @@ async function generateImage(file, prompt, size) {
   if (!b64) throw new Error("OpenAI returned no image");
 
   return Buffer.from(b64, "base64");
+
 }
 
 /* ------------------------------------
@@ -227,6 +232,7 @@ async function processJob(job) {
       .eq("id", job.id);
 
   }
+
 }
 
 /* ------------------------------------
@@ -258,23 +264,29 @@ async function workerLoop() {
 
     if (!jobs || jobs.length === 0) {
 
+      console.log("No pending jobs");
       await sleep(POLL_INTERVAL_MS);
       continue;
 
     }
 
+    console.log("Found jobs:", jobs.length);
+
     await Promise.all(
 
       jobs.map(async (job) => {
 
-        const { count } = await supabase
+        const { data } = await supabase
           .from("generation_jobs")
-          .update({ status: "processing", updated_at: new Date().toISOString() })
+          .update({
+            status: "processing",
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", job.id)
           .eq("status", "pending")
-          .select("*", { count: "exact", head: true });
+          .select();
 
-        if (count === 1) {
+        if (data && data.length === 1) {
           await processJob(job);
         }
 
