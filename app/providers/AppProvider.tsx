@@ -2,10 +2,19 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { User } from "@supabase/supabase-js";
+
+type Profile = {
+  id: string;
+  username: string;
+  persona_name: string;
+  avatar_url: string | null;
+  bio: string | null;
+};
 
 type AppContextType = {
-  user: any;
-  profile: any;
+  user: User | null;
+  profile: Profile | null;
   loading: boolean;
   refresh: () => Promise<void>;
 };
@@ -32,8 +41,8 @@ export default function AppProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [user, setUser] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
@@ -41,7 +50,14 @@ export default function AppProvider({
 
     const {
       data: { session },
+      error: sessionError,
     } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error("SESSION ERROR:", sessionError);
+      setLoading(false);
+      return;
+    }
 
     if (!session) {
       setUser(null);
@@ -53,33 +69,35 @@ export default function AppProvider({
     const currentUser = session.user;
     setUser(currentUser);
 
-    // ✅ Use maybeSingle to avoid 406
-    const { data: profileData } = await supabase
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", currentUser.id)
       .maybeSingle();
 
-    // 🔥 If no profile → auto create
+    if (profileError) {
+      console.error("PROFILE FETCH ERROR:", profileError);
+    }
+
     if (!profileData) {
       const baseName = generateRandomBase(currentUser.email || "user");
 
-      const newProfile = {
+      const newProfile: Profile = {
         id: currentUser.id,
-        persona_name: baseName,
         username: baseName,
+        persona_name: baseName,
         bio: "",
         avatar_url:
           "https://api.dicebear.com/7.x/initials/svg?seed=" +
           currentUser.id,
       };
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from("profiles")
-        .insert(newProfile);
+        .upsert(newProfile);
 
-      if (error) {
-        console.error("PROFILE CREATION ERROR:", error);
+      if (insertError) {
+        console.error("PROFILE CREATION ERROR:", insertError);
         setLoading(false);
         return;
       }
@@ -95,12 +113,14 @@ export default function AppProvider({
   useEffect(() => {
     refresh();
 
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
       refresh();
     });
 
     return () => {
-      sub.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 

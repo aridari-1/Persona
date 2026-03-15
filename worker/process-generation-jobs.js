@@ -5,6 +5,10 @@ const OpenAI = require("openai");
 const { toFile } = require("openai/uploads");
 const sharp = require("sharp");
 
+const PARALLEL_JOBS = 20;
+const POLL_INTERVAL_MS = 2500;
+const STUCK_JOB_MINUTES = 10;
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -19,10 +23,32 @@ function sleep(ms) {
 }
 
 /* ------------------------------------
+RESET STUCK JOBS
+------------------------------------ */
+
+async function resetStuckJobs() {
+
+  const cutoff = new Date(
+    Date.now() - STUCK_JOB_MINUTES * 60 * 1000
+  ).toISOString();
+
+  const { error } = await supabase
+    .from("generation_jobs")
+    .update({ status: "pending" })
+    .eq("status", "processing")
+    .lt("updated_at", cutoff);
+
+  if (!error) {
+    console.log("Checked for stuck jobs");
+  }
+}
+
+/* ------------------------------------
 DOWNLOAD INPUT IMAGE
 ------------------------------------ */
 
 async function downloadInput(inputPath) {
+
   const { data, error } = await supabase.storage
     .from("persona-inputs")
     .download(inputPath);
@@ -33,7 +59,7 @@ async function downloadInput(inputPath) {
 }
 
 /* ------------------------------------
-IMAGE GENERATION
+OPENAI IMAGE GENERATION
 ------------------------------------ */
 
 async function generateImage(file, prompt, size) {
@@ -41,15 +67,13 @@ async function generateImage(file, prompt, size) {
   const result = await openai.images.edit({
     model: "gpt-image-1-mini",
     image: file,
-    prompt: prompt,
-    size: size
+    prompt,
+    size,
   });
 
   const b64 = result.data?.[0]?.b64_json;
 
-  if (!b64) {
-    throw new Error("No image returned from OpenAI");
-  }
+  if (!b64) throw new Error("OpenAI returned no image");
 
   return Buffer.from(b64, "base64");
 }
@@ -60,17 +84,9 @@ PROCESS ONE JOB
 
 async function processJob(job) {
 
-  console.log("Processing job:", job.id, job.job_type);
+  console.log("Processing job:", job.id);
 
   try {
-
-    if (!job.input_path) {
-      throw new Error("Missing input_path");
-    }
-
-    /* ------------------------------
-    DOWNLOAD IMAGE
-    ------------------------------ */
 
     const inputBuffer = await downloadInput(job.input_path);
 
@@ -81,12 +97,8 @@ async function processJob(job) {
       .toBuffer();
 
     const file = await toFile(preparedImage, "input.png", {
-      type: "image/png"
+      type: "image/png",
     });
-
-    /* ------------------------------
-    DETERMINE GENERATION SIZE
-    ------------------------------ */
 
     let generationSize = "1024x1024";
 
@@ -94,28 +106,27 @@ async function processJob(job) {
       generationSize = "1024x1536";
     }
 
-    /* ------------------------------
-    GENERATE IMAGE
-    ------------------------------ */
-
     let rawBuffer;
 
     try {
 
-      rawBuffer = await generateImage(file, job.prompt, generationSize);
+      rawBuffer = await generateImage(
+        file,
+        job.prompt,
+        generationSize
+      );
 
     } catch (err) {
 
-      if (err.message && err.message.includes("safety")) {
+      if (err.message?.includes("safety")) {
 
         console.log("Safety retry");
 
-        const fallbackPrompt = `
-Improve lighting, clarity and color balance.
-Keep the appearance natural and realistic.
-`;
-
-        rawBuffer = await generateImage(file, fallbackPrompt, generationSize);
+        rawBuffer = await generateImage(
+          file,
+          "Improve lighting and clarity while keeping it natural.",
+          generationSize
+        );
 
       } else {
         throw err;
@@ -126,10 +137,6 @@ Keep the appearance natural and realistic.
     let optimizedBuffer;
     let bucket;
     let outputPath;
-
-    /* ------------------------------
-    POST
-    ------------------------------ */
 
     if (job.job_type === "post") {
 
@@ -143,11 +150,7 @@ Keep the appearance natural and realistic.
 
     }
 
-    /* ------------------------------
-    STORY
-    ------------------------------ */
-
-    if (job.job_type === "story") {
+    else if (job.job_type === "story") {
 
       optimizedBuffer = await sharp(rawBuffer)
         .resize(1080, 1920, { fit: "cover" })
@@ -159,11 +162,7 @@ Keep the appearance natural and realistic.
 
     }
 
-    /* ------------------------------
-    AVATAR
-    ------------------------------ */
-
-    if (job.job_type === "avatar") {
+    else if (job.job_type === "avatar") {
 
       optimizedBuffer = await sharp(rawBuffer)
         .resize(512, 512, { fit: "cover" })
@@ -175,28 +174,20 @@ Keep the appearance natural and realistic.
 
     }
 
-    if (!bucket || !outputPath) {
-      throw new Error("Invalid job type");
-    }
+    else {
 
-    /* ------------------------------
-    UPLOAD RESULT
-    ------------------------------ */
+      throw new Error("Invalid job type");
+
+    }
 
     const { error: uploadError } = await supabase.storage
       .from(bucket)
       .upload(outputPath, optimizedBuffer, {
         contentType: "image/webp",
-        upsert: true
+        upsert: true,
       });
 
     if (uploadError) throw uploadError;
-
-    console.log("Uploaded:", bucket, outputPath);
-
-    /* ------------------------------
-    UPDATE AVATAR PROFILE
-    ------------------------------ */
 
     if (job.job_type === "avatar") {
 
@@ -211,20 +202,16 @@ Keep the appearance natural and realistic.
 
     }
 
-    /* ------------------------------
-    COMPLETE JOB
-    ------------------------------ */
-
     await supabase
       .from("generation_jobs")
       .update({
         status: "completed",
         output_path: outputPath,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
       })
       .eq("id", job.id);
 
-    console.log("Job completed:", job.id);
+    console.log("Completed job:", job.id);
 
   } catch (err) {
 
@@ -235,47 +222,59 @@ Keep the appearance natural and realistic.
       .update({
         status: "failed",
         error: err.message,
-        completed_at: new Date().toISOString()
+        completed_at: new Date().toISOString(),
       })
       .eq("id", job.id);
 
   }
-
 }
 
 /* ------------------------------------
-WORKER LOOP (PARALLEL JOBS)
+WORKER LOOP
 ------------------------------------ */
 
 async function workerLoop() {
 
-  console.log("AI Worker started...");
+  console.log("AI Worker started");
 
   while (true) {
 
-    const { data: jobs } = await supabase
+    await resetStuckJobs();
+
+    const { data: jobs, error } = await supabase
       .from("generation_jobs")
       .select("*")
       .eq("status", "pending")
       .order("created_at", { ascending: true })
-      .limit(5);
+      .limit(PARALLEL_JOBS);
+
+    if (error) {
+
+      console.error("Fetch jobs error:", error.message);
+      await sleep(POLL_INTERVAL_MS);
+      continue;
+
+    }
 
     if (!jobs || jobs.length === 0) {
-      await sleep(1500);
+
+      await sleep(POLL_INTERVAL_MS);
       continue;
+
     }
 
     await Promise.all(
 
       jobs.map(async (job) => {
 
-        const { error } = await supabase
+        const { count } = await supabase
           .from("generation_jobs")
-          .update({ status: "processing" })
+          .update({ status: "processing", updated_at: new Date().toISOString() })
           .eq("id", job.id)
-          .eq("status", "pending");
+          .eq("status", "pending")
+          .select("*", { count: "exact", head: true });
 
-        if (!error) {
+        if (count === 1) {
           await processJob(job);
         }
 

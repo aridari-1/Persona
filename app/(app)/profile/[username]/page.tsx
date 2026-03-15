@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 
 const PAGE_SIZE = 18;
 
 interface Profile {
   id: string;
   username: string;
-  display_name: string;
+  display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
 }
@@ -21,6 +22,12 @@ interface Post {
   post_media: {
     output_path: string;
   }[];
+}
+
+function formatNumber(n: number) {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
+  return n.toString();
 }
 
 export default function ProfilePage() {
@@ -69,15 +76,14 @@ export default function ProfilePage() {
 
     return () => observer.disconnect();
 
-  }, [profile, hasMore, loadingMore]);
+  }, [posts.length, hasMore]);
 
   async function fetchProfile() {
 
     setLoading(true);
     setPosts([]);
 
-    const { data: session } = await supabase.auth.getSession();
-    const user = session.session?.user;
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
       router.push("/login");
@@ -107,18 +113,19 @@ export default function ProfilePage() {
 
         supabase
           .from("follows")
-          .select("*", { count: "estimated", head: true })
+          .select("*", { count: "exact", head: true })
           .eq("following_id", profileData.id),
 
         supabase
           .from("follows")
-          .select("*", { count: "estimated", head: true })
+          .select("*", { count: "exact", head: true })
           .eq("follower_id", profileData.id),
 
         supabase
           .from("posts")
-          .select("*", { count: "estimated", head: true })
+          .select("*", { count: "exact", head: true })
           .eq("user_id", profileData.id),
+
       ]);
 
     setFollowersCount(followers || 0);
@@ -200,11 +207,9 @@ export default function ProfilePage() {
 
   async function handleFollowToggle() {
 
-    const { data: session } = await supabase.auth.getSession();
-    const user = session.session?.user;
+    const { data: { user } } = await supabase.auth.getUser();
 
     if (!user || !profile) return;
-
     if (user.id === profile.id) return;
 
     if (isFollowing) {
@@ -292,44 +297,40 @@ export default function ProfilePage() {
 
           <div className="w-24 h-24 rounded-full overflow-hidden bg-[#0f0f0f] shrink-0">
 
-            {profile.avatar_url ? (
-
-              <Image
-                src={String(profile.avatar_url)}
-                alt="avatar"
-                width={96}
-                height={96}
-                className="object-cover w-full h-full"
-                priority
-                unoptimized
-              />
-
-            ) : (
-
-              <div className="flex items-center justify-center w-full h-full text-gray-400 text-sm">
-                No Avatar
-              </div>
-
-            )}
+            <Image
+              src={
+                profile.avatar_url ||
+                `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`
+              }
+              alt="avatar"
+              width={96}
+              height={96}
+              className="object-cover w-full h-full"
+              priority
+            />
 
           </div>
 
           <div className="flex flex-1 justify-between text-center">
 
             <div>
-              <p className="text-[16px] font-semibold">{postCount}</p>
+              <p className="text-[16px] font-semibold">{formatNumber(postCount)}</p>
               <p className="text-[12px] text-gray-500">Posts</p>
             </div>
 
-            <div>
-              <p className="text-[16px] font-semibold">{followersCount}</p>
-              <p className="text-[12px] text-gray-500">Followers</p>
-            </div>
+            <Link href={`/profile/${profile.username}/followers`}>
+              <div className="cursor-pointer hover:text-white transition">
+                <p className="text-[16px] font-semibold">{formatNumber(followersCount)}</p>
+                <p className="text-[12px] text-gray-500">Followers</p>
+              </div>
+            </Link>
 
-            <div>
-              <p className="text-[16px] font-semibold">{followingCount}</p>
-              <p className="text-[12px] text-gray-500">Following</p>
-            </div>
+            <Link href={`/profile/${profile.username}/following`}>
+              <div className="cursor-pointer hover:text-white transition">
+                <p className="text-[16px] font-semibold">{formatNumber(followingCount)}</p>
+                <p className="text-[12px] text-gray-500">Following</p>
+              </div>
+            </Link>
 
           </div>
 
@@ -338,7 +339,7 @@ export default function ProfilePage() {
         <div className="space-y-1">
 
           <h1 className="text-[16px] font-semibold">
-            {profile.display_name}
+            {profile.display_name || profile.username}
           </h1>
 
           <p
@@ -430,6 +431,7 @@ export default function ProfilePage() {
                 fill
                 sizes="33vw"
                 className="object-cover group-hover:scale-[1.05] transition duration-300"
+                loading="lazy"
                 unoptimized
               />
 

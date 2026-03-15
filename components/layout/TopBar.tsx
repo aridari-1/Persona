@@ -81,8 +81,9 @@ export default function TopBar() {
   }, []);
 
   return (
-    <header className="h-14 px-4 flex items-center justify-between bg-[#0f0f0f] border-b border-[#1a1a1a]">
+    <div className="h-14 px-4 flex items-center justify-between bg-[#0f0f0f]">
 
+      {/* APP NAME */}
       <div
         onClick={() => router.push("/feed")}
         className="text-[15px] font-semibold tracking-wide cursor-pointer"
@@ -90,40 +91,44 @@ export default function TopBar() {
         Persona
       </div>
 
-      <div className="flex items-center space-x-6">
+      {/* ACTIONS */}
+      <div className="flex items-center gap-5">
 
         {generating && (
           <button
             onClick={() => router.push(routeForJob(jobType))}
-            className="flex items-center space-x-2 text-xs text-purple-400 hover:text-purple-300"
+            className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300"
           >
             <div className="h-3 w-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
-            <span>AI Generating...</span>
+            <span className="hidden sm:inline">
+              AI Generating...
+            </span>
           </button>
         )}
 
         <button
           onClick={() => router.push("/notifications")}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400 hover:text-white transition"
         >
           <Bell size={20} strokeWidth={1.5} />
         </button>
 
         <button
           onClick={() => router.push("/messages")}
-          className="text-gray-400 hover:text-white"
+          className="text-gray-400 hover:text-white transition"
         >
           <Send size={20} strokeWidth={1.5} />
         </button>
 
         <button
           onClick={handleLogout}
-          className="text-gray-400 hover:text-red-500"
+          className="text-gray-400 hover:text-red-500 transition"
         >
           <LogOut size={20} strokeWidth={1.5} />
         </button>
 
       </div>
-    </header>
+
+    </div>
   );
 }

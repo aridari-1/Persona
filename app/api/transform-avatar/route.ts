@@ -6,39 +6,86 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
+/* ---------------------------------- */
+/* CONFIG                             */
+/* ---------------------------------- */
+
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
+const SUPPORTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+/* ---------------------------------- */
+/* PARSE DATA URL                     */
+/* ---------------------------------- */
+
 function parseDataUrl(dataUrl: string): Buffer {
+
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
-  if (!match) throw new Error("Invalid data URL");
-  return Buffer.from(match[2], "base64");
+
+  if (!match) {
+    throw new Error("Invalid data URL format");
+  }
+
+  const mime = match[1];
+  const base64 = match[2];
+
+  if (!SUPPORTED_TYPES.includes(mime)) {
+    throw new Error("Unsupported image format");
+  }
+
+  const buffer = Buffer.from(base64, "base64");
+
+  if (buffer.length > MAX_IMAGE_SIZE) {
+    throw new Error("Image too large (max 8MB)");
+  }
+
+  return buffer;
 }
 
+/* ---------------------------------- */
+/* ROUTE                              */
+/* ---------------------------------- */
+
 export async function POST(req: Request) {
+
   try {
 
-    // ===============================
-    // AUTH
-    // ===============================
-    const auth = req.headers.get("Authorization") || "";
+    /* -----------------------------
+       AUTHORIZATION
+    ----------------------------- */
 
-    if (!auth.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authHeader = req.headers.get("authorization");
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    const token = auth.replace("Bearer ", "");
+    const token = authHeader.split(" ")[1];
 
     const supabase = supabaseWithToken(token);
 
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // ===============================
-    // BODY
-    // ===============================
-    const { inputDataUrl, generationToken } = await req.json();
+    /* -----------------------------
+       BODY
+    ----------------------------- */
+
+    const body = await req.json();
+
+    const inputDataUrl = body.inputDataUrl;
+    const generationToken = body.generationToken;
 
     if (!generationToken) {
       return NextResponse.json(
@@ -47,10 +94,16 @@ export async function POST(req: Request) {
       );
     }
 
+    /* -----------------------------
+       VERIFY GENERATION TOKEN
+    ----------------------------- */
+
     try {
+
       const decoded: any = jwt.verify(
         generationToken,
-        process.env.GENERATION_TOKEN_SECRET!
+        process.env.GENERATION_TOKEN_SECRET!,
+        { algorithms: ["HS256"] }
       );
 
       if (decoded.userId !== user.id) {
@@ -59,11 +112,14 @@ export async function POST(req: Request) {
           { status: 403 }
         );
       }
+
     } catch {
+
       return NextResponse.json(
         { error: "Token expired or invalid." },
         { status: 403 }
       );
+
     }
 
     if (!inputDataUrl) {
@@ -73,21 +129,37 @@ export async function POST(req: Request) {
       );
     }
 
+    /* -----------------------------
+       ADMIN CLIENT
+    ----------------------------- */
+
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false } }
     );
 
-    // ===============================
-    // IMAGE PREP
-    // ===============================
+    /* -----------------------------
+       IMAGE PREP
+    ----------------------------- */
+
     const originalBuffer = parseDataUrl(inputDataUrl);
 
     const preparedImage = await sharp(originalBuffer)
       .rotate()
-      .resize(1024, 1024, { fit: "cover" })
-      .png()
+      .resize(1024, 1024, {
+        fit: "cover",
+        withoutEnlargement: true
+      })
+      .png({
+        compressionLevel: 9,
+        quality: 90
+      })
       .toBuffer();
+
+    /* -----------------------------
+       UPLOAD INPUT IMAGE
+    ----------------------------- */
 
     const inputPath = `${user.id}/inputs/${Date.now()}.png`;
 
@@ -99,47 +171,64 @@ export async function POST(req: Request) {
       });
 
     if (uploadError) {
+
+      console.error("UPLOAD ERROR:", uploadError);
+
       return NextResponse.json(
-        { error: uploadError.message },
+        { error: "Upload failed" },
         { status: 500 }
       );
+
     }
 
-    // ===============================
-    // PROMPT
-    // ===============================
+    /* -----------------------------
+       PROMPT
+    ----------------------------- */
+
     const avatarPrompt = `
-Improve the quality of this photo.
+Improve the quality of this portrait.
 
-Enhance lighting, clarity, and color balance.
-Sharpen details and improve contrast.
+Enhance lighting, clarity, contrast,
+and color balance.
 
-Keep the appearance natural and realistic.
+Sharpen facial details while keeping
+the appearance natural and realistic.
 
-Do not create cartoon, anime, illustration, or painting styles.
+Do not create cartoon, anime,
+illustration, or painting styles.
 `.trim();
 
-    // ===============================
-    // QUEUE GENERATION
-    // ===============================
-    const { data: job, error: jobError } = await supabaseAdmin
-      .from("generation_jobs")
-      .insert({
-        user_id: user.id,
-        job_type: "avatar",
-        status: "pending",
-        prompt: avatarPrompt,
-        input_path: inputPath,
-      })
-      .select("id, status, created_at")
-      .single();
+    /* -----------------------------
+       QUEUE GENERATION JOB
+    ----------------------------- */
+
+    const { data: job, error: jobError } =
+      await supabaseAdmin
+        .from("generation_jobs")
+        .insert({
+          user_id: user.id,
+          job_type: "avatar",
+          status: "pending",
+          prompt: avatarPrompt,
+          input_path: inputPath,
+        })
+        .select("id, status, created_at")
+        .single();
 
     if (jobError || !job) {
+
+      console.error("JOB ERROR:", jobError);
+
       return NextResponse.json(
-        { error: jobError?.message || "Failed to queue avatar generation." },
+        { error: "Failed to queue avatar generation." },
         { status: 500 }
       );
+
     }
+
+    /* -----------------------------
+       RESPONSE
+    ----------------------------- */
 
     return NextResponse.json({
       job_id: job.id,
@@ -157,4 +246,5 @@ Do not create cartoon, anime, illustration, or painting styles.
     );
 
   }
+
 }

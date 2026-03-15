@@ -6,6 +6,7 @@ import Link from "next/link";
 import Turnstile from "react-turnstile";
 
 export default function SignupPage() {
+
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -15,11 +16,19 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const [showPassword, setShowPassword] = useState(false);
+
   const handleSignup = async () => {
+
     if (loading) return;
 
     if (!email || !password) {
-      setErrorMsg("Enter email and password.");
+      setErrorMsg("Please enter your email and password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg("Password must contain at least 6 characters.");
       return;
     }
 
@@ -29,6 +38,7 @@ export default function SignupPage() {
     }
 
     try {
+
       setLoading(true);
       setErrorMsg(null);
 
@@ -55,74 +65,135 @@ export default function SignupPage() {
       router.replace("/onboarding");
 
     } catch (err) {
+
       console.error(err);
-      setErrorMsg("Something went wrong.");
+
+      setErrorMsg("Something went wrong. Please try again.");
       setLoading(false);
+
     }
+
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-black px-6">
-      <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6">
 
-        <h1 className="text-3xl font-bold text-center neon-text">
-          Join Persona
-        </h1>
+    <div className="min-h-dvh flex items-center justify-center bg-black px-6">
+
+      <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 border border-[#1a1a1a]">
+
+        {/* TITLE */}
+
+        <div className="text-center space-y-2">
+
+          <h1 className="text-3xl font-bold neon-text">
+            Join Persona
+          </h1>
+
+          <p className="text-gray-400 text-sm">
+            Create your AI persona and share it with the world.
+          </p>
+
+        </div>
+
+
+        {/* ERROR */}
 
         {errorMsg && (
-          <div className="text-red-400 text-sm text-center">
+
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg text-center">
             {errorMsg}
           </div>
+
         )}
+
+
+        {/* FORM */}
 
         <div className="space-y-4">
 
           <input
             type="email"
-            placeholder="Email"
+            placeholder="Email address"
             disabled={loading}
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white disabled:opacity-50"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none disabled:opacity-50"
           />
 
-          <input
-            type="password"
-            placeholder="Password"
-            disabled={loading}
-            onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white disabled:opacity-50"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="relative">
 
-          {/* Turnstile */}
-          <div className="flex justify-center">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              disabled={loading}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSignup()}
+              className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none disabled:opacity-50"
+            />
+
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-3 text-gray-400 text-sm"
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+
+          </div>
+
+          <p className="text-xs text-gray-500">
+            Password should contain at least 6 characters.
+          </p>
+
+
+          {/* CAPTCHA */}
+
+          <div className="flex justify-center pt-2">
+
             <Turnstile
               sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
               onVerify={(token) => setCaptchaToken(token)}
               theme="dark"
             />
+
           </div>
+
+
+          {/* BUTTON */}
 
           <button
             onClick={handleSignup}
             disabled={loading}
             className="neon-button w-full py-3 rounded-xl text-black font-semibold disabled:opacity-50"
           >
-            {loading ? "Creating Account..." : "Sign Up"}
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
 
         </div>
 
-        <div className="text-center text-gray-400 text-sm">
-          Already have an account?{" "}
-          <Link href="/login" className="text-white hover:underline">
-            Login
-          </Link>
+
+        {/* FOOTER */}
+
+        <div className="text-center text-gray-400 text-sm space-y-2">
+
+          <p>
+            Already have an account?{" "}
+            <Link href="/login" className="text-white hover:underline">
+              Login
+            </Link>
+          </p>
+
+          <p className="text-xs text-gray-500">
+            By signing up you agree to our Terms and Privacy Policy.
+          </p>
+
         </div>
 
       </div>
+
     </div>
+
   );
+
 }

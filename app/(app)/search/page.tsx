@@ -8,7 +8,7 @@ import Image from "next/image";
 type Profile = {
   id: string;
   username: string;
-  display_name: string;
+  display_name: string | null;
   avatar_url: string | null;
 };
 
@@ -23,7 +23,7 @@ export default function SearchPage() {
   const [recent, setRecent] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /* -------------------------
      LOAD RECENT SEARCHES
@@ -58,12 +58,12 @@ export default function SearchPage() {
 
       setLoading(true);
 
+      const q = `%${query}%`;
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url")
-        .or(
-          `username.ilike.%${query}%,display_name.ilike.%${query}%`
-        )
+        .or(`username.ilike.${q},display_name.ilike.${q}`)
         .order("username", { ascending: true })
         .limit(MAX_RESULTS);
 
@@ -135,11 +135,12 @@ export default function SearchPage() {
         <div className="relative">
 
           <input
+            autoFocus
             type="text"
             placeholder="Search users..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full p-3 pl-4 pr-10 rounded-xl bg-[#111] border border-gray-800 text-white outline-none"
+            className="w-full p-3 pl-4 pr-10 rounded-2xl bg-[#111] border border-gray-800 text-white outline-none"
           />
 
           {query && (
@@ -157,15 +158,11 @@ export default function SearchPage() {
 
       </div>
 
-      {/* LOADING */}
-
       {loading && (
         <p className="text-gray-500 mt-6 text-sm">
           Searching...
         </p>
       )}
-
-      {/* EMPTY RESULT */}
 
       {!loading && query && results.length === 0 && (
 
@@ -185,35 +182,20 @@ export default function SearchPage() {
             className="flex items-center space-x-3 p-3 rounded-xl bg-[#111] hover:bg-[#1a1a1a] cursor-pointer transition"
           >
 
-            {/* Avatar */}
-
             <div className="w-8 h-8 rounded-full overflow-hidden bg-[#0f0f0f]">
 
-              {user.avatar_url ? (
-
-                <Image
-                  src={user.avatar_url}
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                />
-
-              ) : (
-
-                <Image
-                  src="/default-avatar.png"
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="object-cover"
-                />
-
-              )}
+              <Image
+                src={
+                  user.avatar_url ||
+                  `https://api.dicebear.com/7.x/initials/svg?seed=${user.id}`
+                }
+                alt=""
+                width={32}
+                height={32}
+                className="object-cover"
+              />
 
             </div>
-
-            {/* User Info */}
 
             <div className="flex flex-col">
 
@@ -221,9 +203,11 @@ export default function SearchPage() {
                 {user.username}
               </span>
 
-              <span className="text-gray-400 text-[12px]">
-                {user.display_name}
-              </span>
+              {user.display_name && (
+                <span className="text-gray-400 text-[12px]">
+                  {user.display_name}
+                </span>
+              )}
 
             </div>
 
@@ -232,8 +216,6 @@ export default function SearchPage() {
         ))}
 
       </div>
-
-      {/* RECENT SEARCH TITLE */}
 
       {!query && recent.length > 0 && (
 

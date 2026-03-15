@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRouter } from "next/navigation";
 
 type StoryState =
   | "idle"
@@ -10,6 +11,8 @@ type StoryState =
   | "publishing";
 
 export default function CreateStoryPage() {
+
+  const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
@@ -20,17 +23,19 @@ export default function CreateStoryPage() {
   const [outputPath, setOutputPath] = useState<string | null>(null);
 
   const [remaining, setRemaining] = useState<number | null>(null);
-
   const [jobId, setJobId] = useState<string | null>(null);
 
-  /* ===============================
-  Fetch remaining generations
-  =============================== */
+  const localPreviewRef = useRef<string | null>(null);
+
+  /* ------------------------------
+     FETCH REMAINING USAGE
+  ------------------------------ */
 
   const fetchRemaining = async () => {
 
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
+
     if (!token) return;
 
     const res = await fetch("/api/usage", {
@@ -51,9 +56,9 @@ export default function CreateStoryPage() {
     fetchRemaining();
   }, []);
 
-  /* ===============================
-  Restore active generation
-  =============================== */
+  /* ------------------------------
+     RESTORE GENERATION JOB
+  ------------------------------ */
 
   useEffect(() => {
 
@@ -69,7 +74,10 @@ export default function CreateStoryPage() {
         .eq("id", savedJob)
         .single();
 
-      if (!job) return;
+      if (!job) {
+        localStorage.removeItem("active_story_job");
+        return;
+      }
 
       if (job.status === "completed" && job.output_path) {
 
@@ -80,8 +88,11 @@ export default function CreateStoryPage() {
         setPreviewUrl(data.publicUrl);
         setOutputPath(job.output_path);
         setState("preview");
+        setJobId(null);
 
         localStorage.removeItem("active_story_job");
+
+        await fetchRemaining();
 
         return;
 
@@ -91,6 +102,10 @@ export default function CreateStoryPage() {
 
         localStorage.removeItem("active_story_job");
         setState("idle");
+        setJobId(null);
+
+        await fetchRemaining();
+
         return;
 
       }
@@ -104,21 +119,9 @@ export default function CreateStoryPage() {
 
   }, []);
 
-  const fileToDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-
-      const reader = new FileReader();
-
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-
-      reader.readAsDataURL(file);
-
-    });
-
-  /* ===============================
-  Realtime generation updates
-  =============================== */
+  /* ------------------------------
+     REALTIME JOB LISTENER
+  ------------------------------ */
 
   useEffect(() => {
 
@@ -153,6 +156,9 @@ export default function CreateStoryPage() {
             setPreviewUrl(data.publicUrl);
             setOutputPath(job.output_path);
             setState("preview");
+            setJobId(null);
+
+            await fetchRemaining();
 
           }
 
@@ -166,6 +172,9 @@ export default function CreateStoryPage() {
             );
 
             setState("idle");
+            setJobId(null);
+
+            await fetchRemaining();
 
           }
 
@@ -179,9 +188,41 @@ export default function CreateStoryPage() {
 
   }, [jobId]);
 
-  /* ===============================
-  Transform Story
-  =============================== */
+  /* ------------------------------
+     CLEANUP PREVIEW URL
+  ------------------------------ */
+
+  useEffect(() => {
+
+    return () => {
+
+      if (localPreviewRef.current) {
+        URL.revokeObjectURL(localPreviewRef.current);
+      }
+
+    };
+
+  }, []);
+
+  /* ------------------------------
+     FILE TO DATA URL
+  ------------------------------ */
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+
+      reader.readAsDataURL(file);
+
+    });
+
+  /* ------------------------------
+     TRANSFORM STORY
+  ------------------------------ */
 
   const handleTransform = async () => {
 
@@ -205,7 +246,7 @@ export default function CreateStoryPage() {
       const token = data.session?.access_token;
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -220,7 +261,12 @@ export default function CreateStoryPage() {
 
       if (!tokenRes.ok) {
 
+        if (tokenRes.status === 429) {
+          setRemaining(0);
+        }
+
         alert(tokenData.error || "Generation blocked");
+
         setState("idle");
         return;
 
@@ -243,7 +289,9 @@ export default function CreateStoryPage() {
       if (!res.ok) {
 
         setState("idle");
+
         alert(result.error || "AI transformation failed");
+
         return;
 
       }
@@ -266,9 +314,9 @@ export default function CreateStoryPage() {
 
   };
 
-  /* ===============================
-  Publish Story
-  =============================== */
+  /* ------------------------------
+     PUBLISH STORY
+  ------------------------------ */
 
   const handlePublish = async () => {
 
@@ -282,7 +330,7 @@ export default function CreateStoryPage() {
       const token = data.session?.access_token;
 
       if (!token) {
-        window.location.href = "/login";
+        router.push("/login");
         return;
       }
 
@@ -311,7 +359,7 @@ export default function CreateStoryPage() {
 
       }
 
-      window.location.href = "/feed";
+      router.push("/feed");
 
     } catch (err) {
 
@@ -325,9 +373,9 @@ export default function CreateStoryPage() {
 
   };
 
-  /* ===============================
-  UI
-  =============================== */
+  /* ------------------------------
+     UI
+  ------------------------------ */
 
   return (
 
@@ -338,17 +386,25 @@ export default function CreateStoryPage() {
       </h1>
 
       {remaining !== null && (
+
         <div className="text-sm">
+
           {remaining > 0 ? (
+
             <span className="text-gray-400">
               {remaining} generation{remaining !== 1 && "s"} remaining today
             </span>
+
           ) : (
+
             <span className="text-red-500">
               Daily limit reached (2 per day)
             </span>
+
           )}
+
         </div>
+
       )}
 
       {state === "idle" && (
@@ -358,19 +414,32 @@ export default function CreateStoryPage() {
           <input
             type="file"
             accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+
+              const nextFile = e.target.files?.[0] ?? null;
+              setFile(nextFile);
+
+              if (localPreviewRef.current) {
+                URL.revokeObjectURL(localPreviewRef.current);
+              }
+
+              if (nextFile) {
+                localPreviewRef.current = URL.createObjectURL(nextFile);
+              }
+
+            }}
           />
 
           <div className="text-xs text-gray-400">
             Upload a clear portrait photo for best results.
           </div>
 
-          {file && (
+          {file && localPreviewRef.current && (
 
             <div className="relative w-full aspect-[9/16] overflow-hidden rounded-xl bg-black">
 
               <img
-                src={URL.createObjectURL(file)}
+                src={localPreviewRef.current}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt=""
               />
@@ -438,6 +507,7 @@ export default function CreateStoryPage() {
                 setState("idle");
                 setPreviewUrl(null);
                 setOutputPath(null);
+                setFile(null);
               }}
               className="flex-1 border border-gray-700 py-3 rounded-xl"
             >

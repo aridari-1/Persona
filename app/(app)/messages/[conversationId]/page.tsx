@@ -42,8 +42,14 @@ export default function ChatPage() {
 
     await fetchOtherUser(user.id);
 
-    fetchMessages();
-    subscribeMessages();
+    await fetchMessages();
+
+    const channel = subscribeMessages();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+
   }
 
   async function fetchOtherUser(currentUserId: string) {
@@ -65,6 +71,7 @@ export default function ChatPage() {
     if (other && Array.isArray(other.profiles)) {
       setOtherAvatar(other.profiles[0]?.avatar_url || null);
     }
+
   }
 
   async function fetchMessages() {
@@ -73,14 +80,16 @@ export default function ChatPage() {
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: true })
+      .limit(50);
 
     setMessages(data || []);
+
   }
 
   function subscribeMessages() {
 
-    supabase
+    return supabase
       .channel(`messages-${conversationId}`)
       .on(
         "postgres_changes",
@@ -92,14 +101,20 @@ export default function ChatPage() {
         },
         (payload) => {
 
-          setMessages((prev) => [
-            ...prev,
-            payload.new as Message,
-          ]);
+          setMessages((prev) => {
+
+            if (prev.some((m) => m.id === payload.new.id)) {
+              return prev;
+            }
+
+            return [...prev, payload.new as Message];
+
+          });
 
         }
       )
       .subscribe();
+
   }
 
   function scrollToBottom() {
@@ -107,6 +122,7 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({
       behavior: "smooth",
     });
+
   }
 
   async function sendMessage() {
@@ -125,17 +141,17 @@ export default function ChatPage() {
     });
 
     setText("");
+
   }
 
   return (
+
     <div className="flex flex-col h-screen bg-black text-white">
 
-      {/* HEADER */}
       <div className="px-4 py-3 border-b border-[#1a1a1a] text-center text-sm font-semibold">
         Conversation
       </div>
 
-      {/* MESSAGES */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
 
         {messages.map((msg) => {
@@ -199,12 +215,12 @@ export default function ChatPage() {
 
       </div>
 
-      {/* INPUT BAR */}
       <div className="border-t border-[#1a1a1a] p-4 flex space-x-3">
 
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Send a message..."
           className="flex-1 bg-[#111] text-white placeholder-gray-500 px-4 py-2 rounded-full text-sm outline-none"
         />
@@ -219,5 +235,7 @@ export default function ChatPage() {
       </div>
 
     </div>
+
   );
+
 }

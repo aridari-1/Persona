@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 
 export default function OnboardingPage() {
+
   const router = useRouter();
 
   const [username, setUsername] = useState("");
@@ -17,10 +18,16 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  /* -------------------------
+     CHECK USER + PROFILE
+  ------------------------- */
+
   useEffect(() => {
+
     let mounted = true;
 
     const checkUserAndProfile = async () => {
+
       const { data: sessionRes } = await supabase.auth.getSession();
       const user = sessionRes.session?.user;
 
@@ -55,6 +62,7 @@ export default function OnboardingPage() {
       );
 
       setBio(profile.bio || "");
+
     };
 
     checkUserAndProfile();
@@ -62,10 +70,15 @@ export default function OnboardingPage() {
     return () => {
       mounted = false;
     };
+
   }, [router]);
 
-  // Username validation + availability
+  /* -------------------------
+     USERNAME VALIDATION
+  ------------------------- */
+
   useEffect(() => {
+
     if (!username) {
       setUsernameAvailable(null);
       return;
@@ -79,6 +92,7 @@ export default function OnboardingPage() {
     }
 
     const checkAvailability = async () => {
+
       setCheckingUsername(true);
 
       const { data } = await supabase
@@ -89,19 +103,28 @@ export default function OnboardingPage() {
 
       setUsernameAvailable(!data);
       setCheckingUsername(false);
+
     };
 
     const delay = setTimeout(checkAvailability, 400);
+
     return () => clearTimeout(delay);
+
   }, [username]);
 
+  /* -------------------------
+     SUBMIT
+  ------------------------- */
+
   const handleSubmit = async () => {
+
     if (!usernameAvailable || !displayName || loading || checkingUsername) return;
 
     setLoading(true);
     setErrorMsg(null);
 
     try {
+
       const { data: sessionRes } = await supabase.auth.getSession();
       const user = sessionRes.session?.user;
 
@@ -127,33 +150,54 @@ export default function OnboardingPage() {
       if (error) throw new Error(error.message);
 
       router.replace("/feed");
+
     } catch (err: any) {
+
       setErrorMsg(err?.message || "Something went wrong.");
       setLoading(false);
+
     }
+
   };
 
+  /* -------------------------
+     UI
+  ------------------------- */
+
   return (
+
     <div className="min-h-screen flex items-center justify-center bg-black px-6 text-white">
+
       <div className="w-full max-w-md space-y-8">
 
+        {/* TITLE */}
+
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-bold">
-            Complete your profile
+
+          <h1 className="text-3xl font-bold neon-text">
+            Set up your profile
           </h1>
+
           <p className="text-gray-400 text-sm">
-            Set up your identity on Persona.
+            Choose a username and tell people who you are.
           </p>
+
         </div>
 
+        {/* ERROR */}
+
         {errorMsg && (
-          <div className="border border-red-700 bg-red-900/20 text-red-200 text-sm p-3 rounded-lg">
+
+          <div className="bg-red-900/20 border border-red-700 text-red-200 text-sm p-3 rounded-lg">
             {errorMsg}
           </div>
+
         )}
 
-        {/* Username */}
+        {/* USERNAME */}
+
         <div className="space-y-2">
+
           <label className="text-sm text-gray-400">
             Username
           </label>
@@ -165,34 +209,37 @@ export default function OnboardingPage() {
               setUsername(e.target.value.trim().toLowerCase())
             }
             className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
-            placeholder="choose_a_username"
+            placeholder="your_username"
           />
 
           <p className="text-xs text-gray-500">
-            3–20 characters. Letters, numbers, underscores only.
+            3–20 characters. Letters, numbers and underscores only.
           </p>
 
           {checkingUsername && (
             <p className="text-xs text-gray-400">
-              Checking availability…
+              Checking availability...
             </p>
           )}
 
           {usernameAvailable === false && (
             <p className="text-xs text-red-500">
-              Invalid or already taken.
+              Username invalid or already taken.
             </p>
           )}
 
           {usernameAvailable === true && (
             <p className="text-xs text-green-500">
-              Username available.
+              Username available ✓
             </p>
           )}
+
         </div>
 
-        {/* Display Name */}
+        {/* DISPLAY NAME */}
+
         <div className="space-y-2">
+
           <label className="text-sm text-gray-400">
             Display Name
           </label>
@@ -204,10 +251,13 @@ export default function OnboardingPage() {
             className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
             placeholder="Your name"
           />
+
         </div>
 
-        {/* Bio */}
+        {/* BIO */}
+
         <div className="space-y-2">
+
           <label className="text-sm text-gray-400">
             Bio (optional)
           </label>
@@ -215,22 +265,32 @@ export default function OnboardingPage() {
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
             rows={3}
             maxLength={150}
-            placeholder="Tell people about yourself…"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            placeholder="Tell people about yourself..."
           />
+
+          <p className="text-xs text-gray-500 text-right">
+            {bio.length}/150
+          </p>
+
         </div>
+
+        {/* SUBMIT */}
 
         <button
           onClick={handleSubmit}
           disabled={!usernameAvailable || !displayName || loading || checkingUsername}
-          className="w-full py-3 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition font-semibold"
+          className="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition font-semibold"
         >
-          {loading ? "Saving…" : "Finish Setup"}
+          {loading ? "Saving..." : "Finish Setup"}
         </button>
 
       </div>
+
     </div>
+
   );
+
 }

@@ -39,11 +39,11 @@ export default function PostViewer() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [liked, setLiked] = useState(false);
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchPost();
-  }, []);
+    if (postId) fetchPost();
+  }, [postId]);
 
   async function fetchPost() {
 
@@ -52,7 +52,7 @@ export default function PostViewer() {
 
     if (user) setCurrentUserId(user.id);
 
-    const { data } = await supabase
+    const postQuery = supabase
       .from("posts")
       .select(`
         id,
@@ -70,28 +70,42 @@ export default function PostViewer() {
       .eq("id", postId)
       .single();
 
-    if (data) {
-
-      setPost(data);
-
-      if (user) {
-
-        const { data: likeRow } = await supabase
+    const likeQuery = user
+      ? supabase
           .from("likes")
           .select("id")
           .eq("user_id", user.id)
           .eq("target_id", postId)
           .eq("target_type", "post")
-          .maybeSingle();
+          .maybeSingle()
+      : null;
 
-        setLiked(!!likeRow);
+    const [postRes, likeRes] = await Promise.all([
+      postQuery,
+      likeQuery,
+    ]);
 
+    const data = postRes.data;
+
+    if (data) {
+      setPost(data);
+
+      const media = data.post_media?.[0];
+
+      if (media) {
+        const { data: publicUrl } = supabase.storage
+          .from("persona-posts")
+          .getPublicUrl(media.output_path);
+
+        setImageUrl(publicUrl.publicUrl);
       }
 
+      if (likeRes) {
+        setLiked(!!likeRes.data);
+      }
     }
 
     setLoading(false);
-
   }
 
   if (loading) {
@@ -105,27 +119,25 @@ export default function PostViewer() {
   if (!post) return null;
 
   const profile = normalizeProfile(post.profiles);
-  const media = post.post_media?.[0];
 
-  if (!media) return null;
-
-  const imageUrl =
-    `${supabaseUrl}/storage/v1/object/public/persona-posts/${media.output_path}`;
+  const avatar =
+    profile?.avatar_url ||
+    `https://api.dicebear.com/7.x/initials/svg?seed=${profile?.username}`;
 
   return (
 
     <div className="min-h-screen bg-black text-white">
 
-      {/* Header */}
+      {/* HEADER */}
 
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a]">
 
-        <div
+        <button
           onClick={() => router.back()}
-          className="cursor-pointer text-sm text-gray-400 hover:text-white"
+          className="text-sm text-gray-400 hover:text-white"
         >
           ← Back
-        </div>
+        </button>
 
         <div className="text-sm font-medium">
           Post
@@ -135,26 +147,22 @@ export default function PostViewer() {
 
       </div>
 
-      {/* USER HEADER */}
+      {/* USER */}
 
       <div className="flex items-center space-x-2 px-4 py-2">
 
         <div
           onClick={() => profile && router.push(`/profile/${profile.username}`)}
-          className="w-6 h-6 rounded-full overflow-hidden bg-[#0f0f0f] cursor-pointer"
+          className="w-6 h-6 rounded-full overflow-hidden cursor-pointer"
         >
 
-          {profile?.avatar_url && (
-
-            <Image
-              src={profile.avatar_url}
-              alt=""
-              width={24}
-              height={24}
-              className="object-cover"
-            />
-
-          )}
+          <Image
+            src={avatar}
+            alt=""
+            width={24}
+            height={24}
+            className="object-cover"
+          />
 
         </div>
 
@@ -167,36 +175,43 @@ export default function PostViewer() {
 
       </div>
 
-      {/* Image */}
+      {/* IMAGE */}
 
-      <div className="w-full bg-black">
+      {imageUrl && (
 
-        <Image
-          src={imageUrl}
-          alt=""
-          width={1024}
-          height={1024}
-          className="w-full object-cover"
-        />
+        <div className="relative w-full aspect-square">
 
-      </div>
+          <Image
+            src={imageUrl}
+            alt=""
+            fill
+            sizes="100vw"
+            className="object-cover"
+            loading="lazy"
+          />
 
-      {/* Actions */}
+        </div>
+
+      )}
+
+      {/* ACTIONS */}
 
       <div className="px-4 pt-4">
 
         {currentUserId && (
+
           <LikeButton
             postId={post.id}
             initialLiked={liked}
             initialCount={post.like_count || 0}
             userId={currentUserId}
           />
+
         )}
 
       </div>
 
-      {/* Caption */}
+      {/* CAPTION */}
 
       {post.caption && (
 

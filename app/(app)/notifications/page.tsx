@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 interface NotificationItem {
   id: string;
@@ -22,7 +24,19 @@ function normalizeProfile(profile: any) {
   return profile;
 }
 
+function timeAgo(date: string) {
+  const diff = Date.now() - new Date(date).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
 export default function NotificationsPage() {
+
+  const router = useRouter();
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +48,14 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
 
     setLoading(true);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from("notifications")
@@ -49,7 +71,9 @@ export default function NotificationsPage() {
           avatar_url
         )
       `)
-      .order("created_at", { ascending: false });
+      .eq("recipient_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
     if (error) {
       console.error("Notification fetch error:", error);
@@ -64,9 +88,15 @@ export default function NotificationsPage() {
 
   const markAllAsRead = async () => {
 
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
+    if (!user) return;
+
     await supabase
       .from("notifications")
       .update({ is_read: true })
+      .eq("recipient_id", user.id)
       .eq("is_read", false);
 
     setNotifications((prev) =>
@@ -86,30 +116,33 @@ export default function NotificationsPage() {
   }
 
   return (
-    <div className="pb-24 px-4 max-w-2xl mx-auto space-y-6">
 
-      {/* Header */}
+    <div className="pb-28 px-4 max-w-2xl mx-auto space-y-6">
+
       <div className="flex items-center justify-between mt-6">
 
         <h1 className="text-2xl font-bold">
           Notifications
         </h1>
 
-        <button
-          onClick={markAllAsRead}
-          className="text-sm text-gray-400 hover:text-white"
-        >
-          Mark all as read
-        </button>
+        {notifications.length > 0 && (
+
+          <button
+            onClick={markAllAsRead}
+            className="text-sm text-gray-400 hover:text-white"
+          >
+            Mark all as read
+          </button>
+
+        )}
 
       </div>
 
-      {/* Notifications List */}
       <div className="space-y-3">
 
         {notifications.length === 0 && (
 
-          <div className="text-gray-500 text-sm">
+          <div className="text-gray-500 text-sm bg-[#111] border border-gray-800 rounded-xl p-6">
             No notifications yet.
           </div>
 
@@ -119,10 +152,28 @@ export default function NotificationsPage() {
 
           const actor = normalizeProfile(item.actor);
 
+          const avatar =
+            actor?.avatar_url ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${actor?.username}`;
+
+          const handleClick = () => {
+
+            if (item.type === "like" && item.post_id) {
+              router.push(`/post/${item.post_id}`);
+            }
+
+            if (item.type === "follow" && actor) {
+              router.push(`/profile/${actor.username}`);
+            }
+
+          };
+
           return (
+
             <div
               key={item.id}
-              className={`rounded-xl border p-4 flex items-center justify-between ${
+              onClick={handleClick}
+              className={`cursor-pointer rounded-xl border p-4 flex items-center justify-between transition ${
                 item.is_read
                   ? "border-gray-800 bg-[#111]"
                   : "border-purple-700 bg-[#15111d]"
@@ -131,48 +182,40 @@ export default function NotificationsPage() {
 
               <div className="flex items-center space-x-3">
 
-                {/* Avatar */}
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-black">
+                <div className="w-6 h-6 rounded-full overflow-hidden">
 
-                  {actor?.avatar_url && (
-
-                    <img
-                      src={actor.avatar_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-
-                  )}
+                  <Image
+                    src={avatar}
+                    alt=""
+                    width={24}
+                    height={24}
+                    className="object-cover"
+                  />
 
                 </div>
 
-                {/* Text */}
                 <div className="text-sm">
 
                   {item.type === "follow" && (
-
                     <p>
                       <span className="font-semibold">
                         @{actor?.username || "user"}
                       </span>{" "}
                       followed you
                     </p>
-
                   )}
 
                   {item.type === "like" && (
-
                     <p>
                       <span className="font-semibold">
                         @{actor?.username || "user"}
                       </span>{" "}
                       liked your post
                     </p>
-
                   )}
 
                   <p className="text-gray-500 text-xs mt-1">
-                    {new Date(item.created_at).toLocaleString()}
+                    {timeAgo(item.created_at)}
                   </p>
 
                 </div>
@@ -180,6 +223,7 @@ export default function NotificationsPage() {
               </div>
 
             </div>
+
           );
 
         })}
@@ -187,6 +231,7 @@ export default function NotificationsPage() {
       </div>
 
     </div>
+
   );
 
 }

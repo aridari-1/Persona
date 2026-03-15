@@ -11,27 +11,32 @@ type CreateState =
   | "publishing";
 
 export default function CreatePage() {
+
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
+
   const [state, setState] = useState<CreateState>("idle");
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
+
   const [remaining, setRemaining] = useState<number | null>(null);
 
   const [jobId, setJobId] = useState<string | null>(null);
 
+  /* ---------------- FETCH USAGE ---------------- */
+
   const fetchRemaining = async () => {
+
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
+
     if (!token) return;
 
     const res = await fetch("/api/usage", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     const result = await res.json();
@@ -39,63 +44,70 @@ export default function CreatePage() {
     if (res.ok) {
       setRemaining(result.remaining);
     }
+
   };
 
   useEffect(() => {
     fetchRemaining();
   }, []);
 
-  // Restore active generation if user refreshes or navigates away
- useEffect(() => {
-  const restoreJob = async () => {
-    const savedJob = localStorage.getItem("active_generation_job");
-
-    if (!savedJob) return;
-
-    const { data: job } = await supabase
-      .from("generation_jobs")
-      .select("status, output_path")
-      .eq("id", savedJob)
-      .single();
-
-    if (!job) return;
-
-    if (job.status === "completed" && job.output_path) {
-      const { data } = supabase.storage
-        .from("persona-posts")
-        .getPublicUrl(job.output_path);
-
-      setPreviewUrl(data.publicUrl);
-      setOutputPath(job.output_path);
-      setState("preview");
-
-      localStorage.removeItem("active_generation_job");
-      return;
-    }
-
-    if (job.status === "failed") {
-      localStorage.removeItem("active_generation_job");
-      setState("idle");
-      return;
-    }
-
-    // still processing
-    setJobId(savedJob);
-    setState("transforming");
-  };
-
-  restoreJob();
-}, []);
-
-  const fileToDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  /* ---------------- RESTORE JOB ---------------- */
 
   useEffect(() => {
+
+    const restoreJob = async () => {
+
+      const savedJob = localStorage.getItem("active_generation_job");
+
+      if (!savedJob) return;
+
+      const { data: job } = await supabase
+        .from("generation_jobs")
+        .select("status, output_path")
+        .eq("id", savedJob)
+        .single();
+
+      if (!job) return;
+
+      if (job.status === "completed" && job.output_path) {
+
+        const { data } = supabase.storage
+          .from("persona-posts")
+          .getPublicUrl(job.output_path);
+
+        setPreviewUrl(data.publicUrl);
+        setOutputPath(job.output_path);
+
+        setState("preview");
+
+        localStorage.removeItem("active_generation_job");
+
+        return;
+
+      }
+
+      if (job.status === "failed") {
+
+        localStorage.removeItem("active_generation_job");
+        setState("idle");
+
+        return;
+
+      }
+
+      setJobId(savedJob);
+      setState("transforming");
+
+    };
+
+    restoreJob();
+
+  }, []);
+
+  /* ---------------- REALTIME JOB LISTENER ---------------- */
+
+  useEffect(() => {
+
     if (!jobId) return;
 
     const channel = supabase
@@ -109,6 +121,7 @@ export default function CreatePage() {
           filter: `id=eq.${jobId}`,
         },
         async (payload) => {
+
           const job = payload.new as {
             status: string;
             output_path: string | null;
@@ -116,6 +129,7 @@ export default function CreatePage() {
           };
 
           if (job.status === "completed" && job.output_path) {
+
             localStorage.removeItem("active_generation_job");
 
             const { data } = supabase.storage
@@ -124,18 +138,24 @@ export default function CreatePage() {
 
             setPreviewUrl(data.publicUrl);
             setOutputPath(job.output_path);
+
             setState("preview");
+
           }
 
           if (job.status === "failed") {
+
             localStorage.removeItem("active_generation_job");
 
             alert(
               job.error ||
-                "We couldn't process this photo. Please upload a clear portrait of one person."
+                "AI failed to process this photo. Try a clear portrait."
             );
+
             setState("idle");
+
           }
+
         }
       )
       .subscribe();
@@ -143,9 +163,27 @@ export default function CreatePage() {
     return () => {
       supabase.removeChannel(channel);
     };
+
   }, [jobId]);
 
+  /* ---------------- FILE TO DATA URL ---------------- */
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+
+      reader.readAsDataURL(file);
+
+    });
+
+  /* ---------------- TRANSFORM ---------------- */
+
   const handleTransform = async () => {
+
     if (!file) {
       alert("Please upload a photo first.");
       return;
@@ -154,6 +192,7 @@ export default function CreatePage() {
     setState("transforming");
 
     try {
+
       const dataUrl = await fileToDataUrl(file);
 
       const { data } = await supabase.auth.getSession();
@@ -175,10 +214,10 @@ export default function CreatePage() {
       const permissionData = await permissionRes.json();
 
       if (!permissionRes.ok) {
+
         setState("idle");
 
         if (permissionRes.status === 402) {
-          alert("Free credits exhausted. Please purchase credits.");
           router.push("/pricing");
           return;
         }
@@ -188,7 +227,9 @@ export default function CreatePage() {
         }
 
         alert(permissionData.error || "Generation blocked");
+
         return;
+
       }
 
       const generationToken = permissionData.generationToken;
@@ -208,23 +249,36 @@ export default function CreatePage() {
       const result = await res.json();
 
       if (!res.ok) {
+
         setState("idle");
         alert(result.error || "AI transformation failed");
+
         return;
+
       }
 
       setJobId(result.job_id);
+
       localStorage.setItem("active_generation_job", result.job_id);
 
       await fetchRemaining();
+
     } catch (err) {
+
       console.error(err);
-      alert("Unexpected error");
+
+      alert("Unexpected error occurred.");
+
       setState("idle");
+
     }
+
   };
 
+  /* ---------------- PUBLISH ---------------- */
+
   const handlePublish = async () => {
+
     if (!previewUrl || !outputPath) return;
 
     setState("publishing");
@@ -254,40 +308,57 @@ export default function CreatePage() {
     const result = await res.json();
 
     if (!res.ok) {
+
       alert(result.error || "Publish failed");
+
       setState("preview");
+
       return;
+
     }
 
     router.push("/feed");
+
   };
 
+  /* ---------------- UI ---------------- */
+
   return (
-    <div className="pb-24 px-4 space-y-6">
+
+    <div className="pb-24 px-4 space-y-6 max-w-xl mx-auto">
 
       <h1 className="text-2xl font-bold">
         Create AI Portrait
       </h1>
 
       <p className="text-sm text-gray-400">
-        Upload a photo and AI will create a high-quality portrait.
+        Upload a photo and AI will create a cinematic portrait.
       </p>
 
       {remaining !== null && (
+
         <div className="text-sm">
+
           {remaining > 0 ? (
+
             <span className="text-gray-400">
               {remaining} generation{remaining !== 1 && "s"} remaining today
             </span>
+
           ) : (
+
             <span className="text-red-500">
               Daily limit reached (2 per day)
             </span>
+
           )}
+
         </div>
+
       )}
 
       {state === "idle" && (
+
         <div className="bg-[#111] p-4 rounded-xl space-y-4">
 
           <input
@@ -297,35 +368,14 @@ export default function CreatePage() {
             className="text-sm"
           />
 
-          <div className="text-xs text-gray-400 space-y-1">
-            <p className="font-semibold text-gray-300">
-              Best results:
-            </p>
-
-            <ul className="list-disc pl-4 space-y-1">
-              <li>Upload a clear photo of one person</li>
-              <li>Face should be visible and well lit</li>
-              <li>Avoid sunglasses, masks, or heavy shadows</li>
-              <li>Use a real photo (not cartoon or drawing)</li>
-            </ul>
-
-            <p className="text-gray-500 pt-2">
-              Photos of celebrities, minors, or copyrighted images may be rejected.
-            </p>
-          </div>
-
           {file && (
-            <>
-              <img
-                src={URL.createObjectURL(file)}
-                className="w-full rounded-xl"
-                alt=""
-              />
 
-              <div className="text-xs text-yellow-400">
-                Tip: photos with a single visible face usually work best.
-              </div>
-            </>
+            <img
+              src={URL.createObjectURL(file)}
+              className="w-full rounded-xl"
+              alt=""
+            />
+
           )}
 
           <button
@@ -337,25 +387,25 @@ export default function CreatePage() {
           </button>
 
         </div>
+
       )}
 
       {state === "transforming" && (
+
         <div className="flex flex-col items-center justify-center space-y-4 py-20">
 
           <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
 
           <p className="text-gray-400 text-center">
             AI is enhancing your photo...
-            <br />
-            This usually takes 5–10 seconds.
-            <br />
-            You can navigate the app while it processes.
           </p>
 
         </div>
+
       )}
 
       {state === "preview" && previewUrl && (
+
         <div className="space-y-4">
 
           <img
@@ -395,8 +445,11 @@ export default function CreatePage() {
           </div>
 
         </div>
+
       )}
 
     </div>
+
   );
+
 }

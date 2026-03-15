@@ -6,64 +6,127 @@ import jwt from "jsonwebtoken";
 
 export const runtime = "nodejs";
 
-function parseDataUrl(dataUrl: string): Buffer {
+/* ---------------------------------- */
+/* CONFIG                             */
+/* ---------------------------------- */
+
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024; // 8MB
+const SUPPORTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+/* ---------------------------------- */
+/* HELPERS                            */
+/* ---------------------------------- */
+
+function parseDataUrl(dataUrl: string) {
+
   const match = dataUrl.match(/^data:(.+);base64,(.*)$/);
-  if (!match) throw new Error("Invalid data URL");
-  return Buffer.from(match[2], "base64");
+
+  if (!match) {
+    throw new Error("Invalid data URL");
+  }
+
+  const mime = match[1];
+  const base64 = match[2];
+
+  if (!SUPPORTED_TYPES.includes(mime)) {
+    throw new Error("Unsupported image type");
+  }
+
+  const buffer = Buffer.from(base64, "base64");
+
+  if (buffer.length > MAX_IMAGE_SIZE) {
+    throw new Error("Image too large (max 8MB)");
+  }
+
+  return buffer;
 }
 
+/* ---------------------------------- */
+/* ROUTE                              */
+/* ---------------------------------- */
+
 export async function POST(req: Request) {
+
   try {
 
-    // ===============================
-    // AUTH
-    // ===============================
-    const auth = req.headers.get("Authorization") || "";
+    /* ---------------------------
+       AUTH
+    --------------------------- */
 
-    if (!auth.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authHeader = req.headers.get("authorization");
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    const token = auth.replace("Bearer ", "");
+    const token = authHeader.split(" ")[1];
 
     const supabase = supabaseWithToken(token);
 
-    const { data: userRes } = await supabase.auth.getUser();
-    const user = userRes?.user;
+    const {
+      data: { user },
+      error: userError
+    } = await supabase.auth.getUser();
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    // ===============================
-    // BODY
-    // ===============================
-    const { inputDataUrl, generationToken } = await req.json();
+    /* ---------------------------
+       BODY
+    --------------------------- */
+
+    const body = await req.json();
+
+    const inputDataUrl = body.inputDataUrl;
+    const generationToken = body.generationToken;
 
     if (!generationToken) {
       return NextResponse.json(
-        { error: "Missing generation token." },
+        { error: "Missing generation token" },
         { status: 403 }
       );
     }
 
+    /* ---------------------------
+       VERIFY GENERATION TOKEN
+    --------------------------- */
+
     try {
+
       const decoded: any = jwt.verify(
         generationToken,
-        process.env.GENERATION_TOKEN_SECRET!
+        process.env.GENERATION_TOKEN_SECRET!,
+        { algorithms: ["HS256"] }
       );
 
       if (decoded.userId !== user.id) {
         return NextResponse.json(
-          { error: "Invalid token." },
+          { error: "Invalid token owner" },
           { status: 403 }
         );
       }
+
+      if (!decoded.exp) {
+        return NextResponse.json(
+          { error: "Token missing expiration" },
+          { status: 403 }
+        );
+      }
+
     } catch {
+
       return NextResponse.json(
-        { error: "Token expired or invalid." },
+        { error: "Token expired or invalid" },
         { status: 403 }
       );
+
     }
 
     if (!inputDataUrl) {
@@ -73,21 +136,39 @@ export async function POST(req: Request) {
       );
     }
 
+    /* ---------------------------
+       ADMIN CLIENT
+    --------------------------- */
+
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      {
+        auth: { persistSession: false }
+      }
     );
 
-    // ===============================
-    // PREP IMAGE (vertical story)
-    // ===============================
+    /* ---------------------------
+       IMAGE PREP
+    --------------------------- */
+
     const originalBuffer = parseDataUrl(inputDataUrl);
 
     const preparedImage = await sharp(originalBuffer)
       .rotate()
-      .resize(1080, 1920, { fit: "cover" })
-      .png()
+      .resize(1080, 1920, {
+        fit: "cover",
+        withoutEnlargement: true
+      })
+      .png({
+        compressionLevel: 9,
+        quality: 90
+      })
       .toBuffer();
+
+    /* ---------------------------
+       UPLOAD INPUT
+    --------------------------- */
 
     const inputPath = `${user.id}/inputs/${Date.now()}.png`;
 
@@ -99,15 +180,20 @@ export async function POST(req: Request) {
       });
 
     if (uploadError) {
+
+      console.error("UPLOAD ERROR:", uploadError);
+
       return NextResponse.json(
-        { error: uploadError.message },
+        { error: "Upload failed" },
         { status: 500 }
       );
+
     }
 
-    // ===============================
-    // PROMPT
-    // ===============================
+    /* ---------------------------
+       PROMPT
+    --------------------------- */
+
     const storyPrompt = `
 Improve the overall quality of this photo.
 
@@ -116,12 +202,14 @@ Make the image sharper and clearer.
 
 Keep the appearance natural and realistic.
 
-Do not create cartoon, anime, illustration, or painting styles.
+Do not create cartoon, anime, illustration,
+painting styles, or exaggerated effects.
 `.trim();
 
-    // ===============================
-    // QUEUE GENERATION JOB
-    // ===============================
+    /* ---------------------------
+       QUEUE GENERATION
+    --------------------------- */
+
     const { data: job, error: jobError } = await supabaseAdmin
       .from("generation_jobs")
       .insert({
@@ -135,16 +223,24 @@ Do not create cartoon, anime, illustration, or painting styles.
       .single();
 
     if (jobError || !job) {
+
+      console.error("JOB ERROR:", jobError);
+
       return NextResponse.json(
-        { error: jobError?.message || "Failed to queue story generation." },
+        { error: "Failed to queue generation" },
         { status: 500 }
       );
+
     }
+
+    /* ---------------------------
+       RESPONSE
+    --------------------------- */
 
     return NextResponse.json({
       job_id: job.id,
       status: job.status,
-      message: "Story generation queued.",
+      message: "Story generation queued",
     });
 
   } catch (err: any) {
@@ -152,9 +248,10 @@ Do not create cartoon, anime, illustration, or painting styles.
     console.error("QUEUE STORY ERROR:", err);
 
     return NextResponse.json(
-      { error: err?.message || "Server error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
 
   }
+
 }

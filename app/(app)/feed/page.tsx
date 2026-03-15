@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import LikeButton from "@/components/posts/LikeButton";
+import StoryViewer from "@/components/stories/StoryViewer";
 import Image from "next/image";
 
 const PAGE_SIZE = 15;
@@ -16,6 +17,7 @@ interface Profile {
 interface StoryUser {
   user_id: string;
   profiles: Profile | Profile[] | null;
+  unseen: boolean;
 }
 
 interface Post {
@@ -41,6 +43,8 @@ export default function FeedPage() {
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(true);
 
+  const [activeStoryUser, setActiveStoryUser] = useState<string | null>(null);
+
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -57,7 +61,7 @@ export default function FeedPage() {
   }, []);
 
   /* ------------------------------
-     SAFE INFINITE SCROLL OBSERVER
+     SAFE INFINITE SCROLL
   ------------------------------ */
 
   useEffect(() => {
@@ -74,9 +78,7 @@ export default function FeedPage() {
         }
 
       },
-      {
-        rootMargin: "600px"
-      }
+      { rootMargin: "600px" }
     );
 
     observerRef.current.observe(loaderRef.current);
@@ -102,9 +104,12 @@ export default function FeedPage() {
 
     setCurrentUserId(user.id);
 
+    /* -------- FETCH STORIES -------- */
+
     const { data: storiesData } = await supabase
       .from("stories")
       .select(`
+        id,
         user_id,
         profiles:profiles!stories_user_id_fkey (
           username,
@@ -113,13 +118,38 @@ export default function FeedPage() {
       `)
       .gt("expires_at", new Date().toISOString());
 
-    const uniqueStories = Array.from(
-      new Map(
-        (storiesData || []).map((story) => [story.user_id, story])
-      ).values()
-    );
+    const { data: views } = await supabase
+      .from("story_views")
+      .select("story_id")
+      .eq("viewer_id", user.id);
 
-    setStories(uniqueStories as StoryUser[]);
+    const viewedIds = new Set(views?.map((v) => v.story_id));
+
+    const userStories: Record<string, StoryUser> = {};
+
+    (storiesData || []).forEach((story: any) => {
+
+      const unseen = !viewedIds.has(story.id);
+
+      if (!userStories[story.user_id]) {
+
+        userStories[story.user_id] = {
+          user_id: story.user_id,
+          profiles: story.profiles,
+          unseen,
+        };
+
+      } else if (unseen) {
+
+        userStories[story.user_id].unseen = true;
+
+      }
+
+    });
+
+    setStories(Object.values(userStories));
+
+    /* -------- FETCH POSTS -------- */
 
     const { data: feedData } = await supabase
       .from("user_feed")
@@ -148,6 +178,8 @@ export default function FeedPage() {
 
     setPosts(initialPosts);
     setHasMore(initialPosts.length === PAGE_SIZE);
+
+    /* -------- FETCH LIKES -------- */
 
     if (initialPosts.length) {
 
@@ -264,6 +296,18 @@ export default function FeedPage() {
 
     <div className="bg-black text-white pb-24">
 
+      {/* STORY VIEWER */}
+
+      {activeStoryUser && (
+        <StoryViewer
+          userId={activeStoryUser}
+          onClose={() => {
+            setActiveStoryUser(null);
+            fetchInitialFeed(); // refresh rings
+          }}
+        />
+      )}
+
       {/* STORIES */}
 
       <div className="flex overflow-x-auto space-x-4 px-4 py-4 border-b border-[#1a1a1a]">
@@ -272,15 +316,19 @@ export default function FeedPage() {
 
           const profile = normalizeProfile(story.profiles);
 
+          const ring = story.unseen
+            ? "bg-gradient-to-tr from-purple-600 to-pink-600"
+            : "bg-gray-700";
+
           return (
 
             <div
               key={story.user_id}
-              onClick={() => router.push(`/stories/${story.user_id}`)}
+              onClick={() => setActiveStoryUser(story.user_id)}
               className="flex flex-col items-center space-y-2 cursor-pointer min-w-[70px]"
             >
 
-              <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-purple-600 to-pink-600">
+              <div className={`w-14 h-14 rounded-full p-[2px] ${ring}`}>
 
                 <div className="w-full h-full rounded-full overflow-hidden bg-black">
 
@@ -312,7 +360,7 @@ export default function FeedPage() {
 
       </div>
 
-      {/* POSTS */}
+      {/* POSTS (unchanged) */}
 
       <div className="space-y-10">
 
@@ -331,8 +379,6 @@ export default function FeedPage() {
           return (
 
             <div key={`${post.id}-${index}`} className="space-y-3">
-
-              {/* HEADER */}
 
               <div className="flex items-center space-x-3 px-4">
 
@@ -364,8 +410,6 @@ export default function FeedPage() {
 
               </div>
 
-              {/* IMAGE */}
-
               <div
                 onDoubleClick={() => handleDoubleTap(post.id)}
                 onClick={() => router.push(`/post/${post.id}`)}
@@ -383,8 +427,6 @@ export default function FeedPage() {
 
               </div>
 
-              {/* ACTION */}
-
               <div className="px-4">
 
                 {currentUserId && (
@@ -399,8 +441,6 @@ export default function FeedPage() {
                 )}
 
               </div>
-
-              {/* CAPTION */}
 
               {post.caption && (
 
@@ -426,8 +466,6 @@ export default function FeedPage() {
         })}
 
       </div>
-
-      {/* SCROLL LOADER */}
 
       {hasMore && (
 
