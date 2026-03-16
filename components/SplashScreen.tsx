@@ -1,44 +1,28 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Image from "next/image";
 
 export default function SplashScreen() {
-
   return (
-    <div className="fixed inset-0 bg-black flex items-center justify-center z-[9999]">
+    <div className="fixed inset-0 bg-black flex flex-col items-center justify-between z-[9999]">
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 1 }}
-        className="flex flex-col items-center"
-      >
+      {/* CENTER LOGO */}
+      <div className="flex-1 flex items-center justify-center">
+        <Image
+          src="/persona-logo.png"
+          alt="Persona"
+          width={120}
+          height={120}
+          priority
+        />
+      </div>
 
-        <motion.div
-          animate={{
-            scale: [1, 1.05, 1],
-            filter: [
-              "drop-shadow(0 0 10px rgba(0,255,200,0.4))",
-              "drop-shadow(0 0 30px rgba(0,255,200,0.7))",
-              "drop-shadow(0 0 10px rgba(0,255,200,0.4))"
-            ]
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity
-          }}
-        >
-          <Image
-            src="/persona-logo.png"
-            alt="Persona"
-            width={160}
-            height={160}
-            priority
-          />
-        </motion.div>
-
-      </motion.div>
+      {/* BRAND NAME BOTTOM */}
+      <div className="pb-10 text-center">
+        <p className="text-gray-500 text-sm tracking-widest">
+          Persona
+        </p>
+      </div>
 
     </div>
   );
