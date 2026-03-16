@@ -324,7 +324,7 @@ export default function FeedPage() {
 
             <div
               key={story.user_id}
-              onClick={() => setActiveStoryUser(story.user_id)}
+              onClick={() => router.push(`/stories/${story.user_id}`)}
               className="flex flex-col items-center space-y-2 cursor-pointer min-w-[70px]"
             >
 

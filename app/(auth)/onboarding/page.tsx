@@ -16,6 +16,7 @@ export default function OnboardingPage() {
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   /* -------------------------
@@ -23,8 +24,6 @@ export default function OnboardingPage() {
   ------------------------- */
 
   useEffect(() => {
-
-    let mounted = true;
 
     const checkUserAndProfile = async () => {
 
@@ -49,8 +48,6 @@ export default function OnboardingPage() {
         return;
       }
 
-      if (!mounted) return;
-
       if (profile.username?.startsWith("user_")) {
         setUsername("");
       } else {
@@ -63,13 +60,10 @@ export default function OnboardingPage() {
 
       setBio(profile.bio || "");
 
+      setPageLoading(false);
     };
 
     checkUserAndProfile();
-
-    return () => {
-      mounted = false;
-    };
 
   }, [router]);
 
@@ -160,9 +154,13 @@ export default function OnboardingPage() {
 
   };
 
-  /* -------------------------
-     UI
-  ------------------------- */
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    );
+  }
 
   return (
 
@@ -170,11 +168,9 @@ export default function OnboardingPage() {
 
       <div className="w-full max-w-md space-y-8">
 
-        {/* TITLE */}
-
         <div className="text-center space-y-2">
 
-          <h1 className="text-3xl font-bold neon-text">
+          <h1 className="text-3xl font-bold text-white">
             Set up your profile
           </h1>
 
@@ -183,8 +179,6 @@ export default function OnboardingPage() {
           </p>
 
         </div>
-
-        {/* ERROR */}
 
         {errorMsg && (
 
@@ -198,17 +192,15 @@ export default function OnboardingPage() {
 
         <div className="space-y-2">
 
-          <label className="text-sm text-gray-400">
+          <label className="text-sm text-gray-300">
             Username
           </label>
 
           <input
             type="text"
             value={username}
-            onChange={(e) =>
-              setUsername(e.target.value.trim().toLowerCase())
-            }
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            onChange={(e) => setUsername(e.target.value)}
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
             placeholder="your_username"
           />
 
@@ -240,7 +232,7 @@ export default function OnboardingPage() {
 
         <div className="space-y-2">
 
-          <label className="text-sm text-gray-400">
+          <label className="text-sm text-gray-300">
             Display Name
           </label>
 
@@ -248,7 +240,7 @@ export default function OnboardingPage() {
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
             placeholder="Your name"
           />
 
@@ -258,7 +250,7 @@ export default function OnboardingPage() {
 
         <div className="space-y-2">
 
-          <label className="text-sm text-gray-400">
+          <label className="text-sm text-gray-300">
             Bio (optional)
           </label>
 
@@ -267,7 +259,7 @@ export default function OnboardingPage() {
             onChange={(e) => setBio(e.target.value)}
             rows={3}
             maxLength={150}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
             placeholder="Tell people about yourself..."
           />
 
@@ -276,8 +268,6 @@ export default function OnboardingPage() {
           </p>
 
         </div>
-
-        {/* SUBMIT */}
 
         <button
           onClick={handleSubmit}

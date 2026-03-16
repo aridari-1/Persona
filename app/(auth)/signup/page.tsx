@@ -62,7 +62,8 @@ export default function SignupPage() {
         return;
       }
 
-      router.replace("/onboarding");
+      // Redirect to login and tell the user to verify email
+      router.replace("/login?verify=true");
 
     } catch (err) {
 
@@ -81,8 +82,6 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 border border-[#1a1a1a]">
 
-        {/* TITLE */}
-
         <div className="text-center space-y-2">
 
           <h1 className="text-3xl font-bold neon-text">
@@ -95,9 +94,6 @@ export default function SignupPage() {
 
         </div>
 
-
-        {/* ERROR */}
-
         {errorMsg && (
 
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg text-center">
@@ -105,9 +101,6 @@ export default function SignupPage() {
           </div>
 
         )}
-
-
-        {/* FORM */}
 
         <div className="space-y-4">
 
@@ -146,9 +139,6 @@ export default function SignupPage() {
             Password should contain at least 6 characters.
           </p>
 
-
-          {/* CAPTCHA */}
-
           <div className="flex justify-center pt-2">
 
             <Turnstile
@@ -159,9 +149,6 @@ export default function SignupPage() {
 
           </div>
 
-
-          {/* BUTTON */}
-
           <button
             onClick={handleSignup}
             disabled={loading}
@@ -171,9 +158,6 @@ export default function SignupPage() {
           </button>
 
         </div>
-
-
-        {/* FOOTER */}
 
         <div className="text-center text-gray-400 text-sm space-y-2">
 

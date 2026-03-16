@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -5,6 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
+
     const { email, password, captchaToken } = await req.json();
 
     if (!email || !password || !captchaToken) {
@@ -14,8 +16,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Email validation
+    /* -----------------------------
+       EMAIL VALIDATION
+    ----------------------------- */
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: "Invalid email address." },
@@ -23,7 +29,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // Password rule
+    /* -----------------------------
+       PASSWORD RULE
+    ----------------------------- */
+
     if (password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters." },
@@ -31,13 +40,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get user IP (recommended by Turnstile)
+    /* -----------------------------
+       USER IP (Turnstile)
+    ----------------------------- */
+
     const ip =
       req.headers.get("x-forwarded-for") ||
       req.headers.get("x-real-ip") ||
       "";
 
-    // Verify Turnstile
+    /* -----------------------------
+       VERIFY TURNSTILE CAPTCHA
+    ----------------------------- */
+
     const verifyRes = await fetch(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
       {
@@ -58,15 +73,25 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create Supabase client
+    /* -----------------------------
+       CREATE SUPABASE CLIENT
+    ----------------------------- */
+
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
+    /* -----------------------------
+       SIGN UP USER
+    ----------------------------- */
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      },
     });
 
     if (error) {
@@ -76,17 +101,23 @@ export async function POST(req: Request) {
       );
     }
 
+    /* -----------------------------
+       SUCCESS
+    ----------------------------- */
+
     return NextResponse.json({
       success: true,
       message: "Account created. Please check your email to verify.",
     });
 
   } catch (err) {
+
     console.error("SIGNUP ERROR:", err);
 
     return NextResponse.json(
       { error: "Server error." },
       { status: 500 }
     );
+
   }
 }

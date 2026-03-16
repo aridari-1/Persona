@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -11,6 +11,9 @@ interface Story {
     output_path: string;
   }[];
 }
+
+const STORY_DURATION = 5000;
+const SWIPE_THRESHOLD = 70;
 
 export default function StoryPage() {
 
@@ -23,34 +26,19 @@ export default function StoryPage() {
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  const startX = useRef<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+  /* ---------------- FETCH STORIES ---------------- */
 
   useEffect(() => {
     fetchStories();
   }, [userId]);
-
-  useEffect(() => {
-
-    if (!stories.length || !loaded) return;
-
-    const timer = setTimeout(() => {
-
-      if (index < stories.length - 1) {
-        setIndex(prev => prev + 1);
-      } else {
-        router.back();
-      }
-
-    }, 5000);
-
-    return () => clearTimeout(timer);
-
-  }, [index, stories, loaded]);
-
-  useEffect(() => {
-    setLoaded(false);
-  }, [index]);
 
   const fetchStories = async () => {
 
@@ -73,6 +61,133 @@ export default function StoryPage() {
     setLoading(false);
   };
 
+  /* ---------------- STORY PROGRESS ---------------- */
+
+  useEffect(() => {
+
+    if (!stories.length || !loaded || paused) return;
+
+    setProgress(0);
+
+    const start = Date.now();
+
+    timerRef.current = setInterval(() => {
+
+      if (paused) return;
+
+      const elapsed = Date.now() - start;
+      const percent = (elapsed / STORY_DURATION) * 100;
+
+      setProgress(percent);
+
+      if (percent >= 100) {
+
+        clearInterval(timerRef.current!);
+
+        if (index < stories.length - 1) {
+          setIndex(prev => prev + 1);
+        } else {
+          router.back();
+        }
+
+      }
+
+    }, 50);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+
+  }, [index, stories, loaded, paused]);
+
+  useEffect(() => {
+    setLoaded(false);
+  }, [index]);
+
+  /* ---------------- MARK STORY VIEWED ---------------- */
+
+  useEffect(() => {
+
+    const markViewed = async () => {
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const viewer = sessionData.session?.user;
+
+      if (!viewer || !stories[index]) return;
+
+      await supabase.from("story_views").upsert({
+        story_id: stories[index].id,
+        viewer_id: viewer.id
+      });
+
+    };
+
+    markViewed();
+
+  }, [index]);
+
+  /* ---------------- PRELOAD NEXT STORY ---------------- */
+
+  useEffect(() => {
+
+    const next = stories[index + 1];
+
+    if (!next) return;
+
+    const nextMedia = next.story_media?.[0];
+    if (!nextMedia?.output_path) return;
+
+    const img = new Image();
+
+    img.src =
+      `${supabaseUrl}/storage/v1/object/public/persona-stories/${nextMedia.output_path}`;
+
+  }, [index]);
+
+  /* ---------------- SWIPE GESTURE ---------------- */
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    startX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+
+    if (startX.current === null) return;
+
+    const endX = e.changedTouches[0].clientX;
+    const diff = startX.current - endX;
+
+    if (Math.abs(diff) > SWIPE_THRESHOLD) {
+
+      if (diff > 0) {
+        nextStory();
+      } else {
+        prevStory();
+      }
+
+    }
+
+    startX.current = null;
+  };
+
+  /* ---------------- NAVIGATION ---------------- */
+
+  const nextStory = () => {
+
+    if (index < stories.length - 1) {
+      setIndex(prev => prev + 1);
+    } else {
+      router.back();
+    }
+
+  };
+
+  const prevStory = () => {
+    setIndex(prev => Math.max(0, prev - 1));
+  };
+
+  /* ---------------- LOADING ---------------- */
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center text-gray-400">
@@ -90,41 +205,53 @@ export default function StoryPage() {
   }
 
   const media = stories[index]?.story_media?.[0];
-
   if (!media?.output_path) return null;
 
-  let cleanPath = media.output_path;
-
-  if (cleanPath.includes("/posts/")) {
-    cleanPath = cleanPath.replace("/posts/", "/stories/");
-  }
-
   const imageUrl =
-    `${supabaseUrl}/storage/v1/object/public/persona-stories/${cleanPath}`;
+    `${supabaseUrl}/storage/v1/object/public/persona-stories/${media.output_path}`;
+
+  /* ---------------- UI ---------------- */
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">
+
+    <div
+      className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onMouseDown={() => setPaused(true)}
+      onMouseUp={() => setPaused(false)}
+      onTouchStartCapture={() => setPaused(true)}
+      onTouchEndCapture={() => setPaused(false)}
+    >
 
       {/* Progress bars */}
 
       <div className="absolute top-4 left-4 right-4 flex space-x-1 z-20">
 
-        {stories.map((_, i) => (
+        {stories.map((_, i) => {
 
-          <div
-            key={i}
-            className="h-1 flex-1 bg-white/30 rounded overflow-hidden"
-          >
-            {i === index && (
-              <div className="h-full bg-white animate-[storyProgress_5s_linear]" />
-            )}
+          let width = "0%";
 
-            {i < index && (
-              <div className="h-full bg-white" />
-            )}
-          </div>
+          if (i < index) width = "100%";
+          if (i === index) width = `${progress}%`;
 
-        ))}
+          return (
+
+            <div
+              key={i}
+              className="h-1 flex-1 bg-white/30 rounded overflow-hidden"
+            >
+
+              <div
+                className="h-full bg-white transition-all"
+                style={{ width }}
+              />
+
+            </div>
+
+          );
+
+        })}
 
       </div>
 
@@ -152,18 +279,15 @@ export default function StoryPage() {
 
       <div
         className="absolute left-0 top-0 h-full w-1/2"
-        onClick={() => setIndex(prev => Math.max(0, prev - 1))}
+        onClick={prevStory}
       />
 
       <div
         className="absolute right-0 top-0 h-full w-1/2"
-        onClick={() =>
-          index < stories.length - 1
-            ? setIndex(prev => prev + 1)
-            : router.back()
-        }
+        onClick={nextStory}
       />
 
     </div>
+
   );
 }

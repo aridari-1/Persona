@@ -75,7 +75,28 @@ export default function LoginInner() {
         return;
       }
 
-      router.replace("/feed");
+      /* ------------------------------------
+         CHECK IF ONBOARDING IS COMPLETE
+      ------------------------------------ */
+
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", data.user.id)
+        .single();
+
+      if (profileError) {
+        console.error(profileError);
+        setErrorMsg("Could not load profile.");
+        setLoading(false);
+        return;
+      }
+
+      if (!profile?.onboarding_completed) {
+        router.replace("/onboarding");
+      } else {
+        router.replace("/feed");
+      }
 
     } catch (err) {
 
@@ -123,8 +144,6 @@ export default function LoginInner() {
 
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 border border-[#1a1a1a]">
 
-        {/* TITLE */}
-
         <div className="text-center space-y-2">
 
           <h1 className="text-3xl font-bold neon-text">
@@ -137,9 +156,6 @@ export default function LoginInner() {
 
         </div>
 
-
-        {/* SUCCESS MESSAGE */}
-
         {successMsg && (
 
           <div className="bg-green-900/30 border border-green-600 text-green-300 text-sm p-3 rounded-lg text-center">
@@ -148,9 +164,6 @@ export default function LoginInner() {
 
         )}
 
-
-        {/* ERROR MESSAGE */}
-
         {errorMsg && (
 
           <div className="bg-red-900/30 border border-red-600 text-red-300 text-sm p-3 rounded-lg text-center">
@@ -158,9 +171,6 @@ export default function LoginInner() {
           </div>
 
         )}
-
-
-        {/* FORM */}
 
         <div className="space-y-4">
 
@@ -195,7 +205,6 @@ export default function LoginInner() {
 
           </div>
 
-
           <button
             onClick={handleLogin}
             disabled={loading}
@@ -205,9 +214,6 @@ export default function LoginInner() {
           </button>
 
         </div>
-
-
-        {/* RESEND CONFIRMATION */}
 
         {showResend && (
 
@@ -222,9 +228,6 @@ export default function LoginInner() {
           </button>
 
         )}
-
-
-        {/* FOOTER */}
 
         <div className="text-center text-gray-400 text-sm space-y-2">
 

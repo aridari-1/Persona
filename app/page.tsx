@@ -1,225 +1,130 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-black text-white overflow-hidden">
+    <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      {/* background glow */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-[-120px] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
+        <div className="absolute right-[-80px] top-[180px] h-[280px] w-[280px] rounded-full bg-blue-500/10 blur-3xl" />
+        <div className="absolute bottom-[-120px] left-[-80px] h-[280px] w-[280px] rounded-full bg-purple-500/10 blur-3xl" />
+      </div>
 
-      {/* NAVBAR */}
-      <nav className="flex items-center justify-between px-6 py-6 max-w-6xl mx-auto">
-
-        <h1 className="text-xl font-semibold tracking-widest">
-          PERSONA
-        </h1>
-
-        <div className="flex items-center space-x-6 text-sm">
-
+      {/* navbar */}
+      <header className="relative z-10">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
           <Link
-            href="/login"
-            className="text-gray-400 hover:text-white transition"
+            href="/"
+            className="text-[15px] font-semibold tracking-[0.28em] text-white"
           >
-            Login
+            PERSONA
           </Link>
 
-          <Link
-            href="/signup"
-            className="px-5 py-2 rounded-lg bg-white text-black font-medium hover:bg-gray-200 transition"
-          >
-            Get Started
-          </Link>
-
-        </div>
-
-      </nav>
-
-
-      {/* HERO */}
-      <section className="max-w-6xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-16 items-center">
-
-        {/* HERO TEXT */}
-        <div className="space-y-8">
-
-          <h1 className="text-5xl md:text-6xl font-bold leading-tight tracking-tight">
-
-            Create your
-
-            <span className="block bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
-              AI Persona
-            </span>
-
-          </h1>
-
-          <p className="text-gray-400 text-lg max-w-lg">
-            Turn your photos into cinematic AI portraits and
-            share them on the first social network built
-            entirely around AI identities.
-          </p>
-
-          <div className="flex flex-wrap gap-4 pt-4">
-
-            <Link
-              href="/signup"
-              className="px-8 py-4 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 transition"
-            >
-              Start Creating
-            </Link>
-
+          <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="px-8 py-4 rounded-xl border border-gray-700 hover:bg-[#111] transition"
+              className="rounded-full px-4 py-2 text-sm text-white/70 transition hover:text-white"
             >
               Login
             </Link>
 
+            <Link
+              href="/signup"
+              className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black transition hover:bg-white/90"
+            >
+              Get Started
+            </Link>
           </div>
+        </nav>
+      </header>
 
-        </div>
-
-
-        {/* HERO VISUAL */}
-        <div className="grid grid-cols-2 gap-4">
-
-          {[1,2,3,4].map((i) => (
-
-            <div
-              key={i}
-              className="aspect-square bg-gradient-to-br from-[#111] to-[#1a1a1a] rounded-2xl border border-[#222]"
-            />
-
-          ))}
-
-        </div>
-
-      </section>
-
-
-      {/* FEATURES */}
-      <section className="border-t border-[#1a1a1a] py-24 px-6">
-
-        <div className="max-w-6xl mx-auto text-center space-y-16">
-
-          <h2 className="text-3xl md:text-4xl font-bold">
-            Built for the AI generation era
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-12">
-
-            <div className="space-y-4">
-
-              <div className="text-4xl">📸</div>
-
-              <h3 className="text-xl font-semibold">
-                Upload
-              </h3>
-
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Upload a simple portrait photo to begin your AI transformation.
-              </p>
-
-            </div>
-
-
-            <div className="space-y-4">
-
-              <div className="text-4xl">🧠</div>
-
-              <h3 className="text-xl font-semibold">
-                Describe
-              </h3>
-
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Tell AI the style, scene, and atmosphere you want.
-              </p>
-
-            </div>
-
-
-            <div className="space-y-4">
-
-              <div className="text-4xl">✨</div>
-
-              <h3 className="text-xl font-semibold">
-                Transform
-              </h3>
-
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Generate cinematic AI portraits ready to share.
-              </p>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* SHOWCASE */}
-      <section className="bg-[#0f0f14] py-24 px-6">
-
-        <div className="max-w-6xl mx-auto text-center space-y-12">
-
-          <h2 className="text-3xl md:text-4xl font-bold">
-            AI Generated Personas
-          </h2>
-
-          <p className="text-gray-400 max-w-xl mx-auto">
-            Every profile on Persona is powered by AI creativity.
+      {/* hero */}
+      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-88px)] max-w-6xl flex-col items-center justify-center px-6 pb-16 pt-8 text-center">
+        <div className="max-w-3xl">
+          <p className="mb-4 inline-flex rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-white/60">
+            AI social identity
           </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <h1 className="text-5xl font-semibold leading-[0.95] tracking-tight md:text-7xl">
+            Upload your photo.
+            <span className="mt-2 block bg-gradient-to-r from-fuchsia-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+              Become your Persona.
+            </span>
+          </h1>
 
-            {[1,2,3,4,5,6,7,8].map((i) => (
+          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/65 md:text-lg">
+            Create a cinematic AI version of yourself and share it instantly.
+          </p>
 
-              <div
-                key={i}
-                className="aspect-square bg-gradient-to-br from-[#111] to-[#1c1c1c] rounded-2xl border border-[#222]"
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/signup"
+              className="inline-flex min-w-[180px] items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+            >
+              Create Persona
+            </Link>
+
+            <Link
+              href="/login"
+              className="inline-flex min-w-[140px] items-center justify-center rounded-full border border-white/12 bg-white/[0.02] px-7 py-3 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+            >
+              Login
+            </Link>
+          </div>
+        </div>
+
+        {/* before / after visual */}
+        <div className="mt-16 grid w-full max-w-5xl gap-5 md:grid-cols-2">
+          {/* before */}
+          <div className="group rounded-[28px] border border-white/10 bg-white/[0.03] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-sm">
+            <div className="mb-3 flex items-center justify-between px-2">
+              <span className="text-sm font-medium text-white/85">Before</span>
+              <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] text-white/50">
+                Original
+              </span>
+            </div>
+
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#0f0f12]">
+              <Image
+                src="/before-persona.jpg"
+                alt="Original portrait before AI transformation"
+                fill
+                priority
+                className="object-cover transition duration-500 group-hover:scale-[1.02]"
+              />
+            </div>
+          </div>
+
+          {/* after */}
+          <div className="group rounded-[28px] border border-white/10 bg-white/[0.03] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-sm">
+            <div className="mb-3 flex items-center justify-between px-2">
+              <span className="text-sm font-medium text-white/85">After</span>
+              <span className="rounded-full bg-gradient-to-r from-fuchsia-500/20 to-blue-500/20 px-3 py-1 text-[11px] text-white/70">
+                AI Persona
+              </span>
+            </div>
+
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#0f0f12]">
+              <Image
+                src="/after-persona.jpg"
+                alt="AI transformed portrait"
+                fill
+                priority
+                className="object-cover transition duration-500 group-hover:scale-[1.02]"
               />
 
-            ))}
-
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+            </div>
           </div>
-
         </div>
 
+        <p className="mt-6 text-sm text-white/40">
+          Simple photo in. Cinematic Persona out.
+        </p>
       </section>
-
-
-      {/* FINAL CTA */}
-      <section className="py-24 text-center px-6">
-
-        <div className="max-w-3xl mx-auto space-y-8">
-
-          <h2 className="text-4xl font-bold">
-            Start building your AI identity
-          </h2>
-
-          <p className="text-gray-400">
-            Join the first AI-powered social network and
-            create your Persona today.
-          </p>
-
-          <Link
-            href="/signup"
-            className="inline-block px-10 py-4 rounded-xl bg-white text-black font-semibold hover:bg-gray-200 transition"
-          >
-            Join Persona
-          </Link>
-
-        </div>
-
-      </section>
-
-
-      {/* FOOTER */}
-      <footer className="text-center text-gray-500 text-sm py-10 border-t border-[#1a1a1a]">
-
-        © {new Date().getFullYear()} Persona
-
-      </footer>
-
     </main>
   );
 }
