@@ -75,9 +75,7 @@ export default function LoginInner() {
         return;
       }
 
-      /* ------------------------------------
-         CHECK IF ONBOARDING IS COMPLETE
-      ------------------------------------ */
+      /* CHECK ONBOARDING */
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -101,7 +99,6 @@ export default function LoginInner() {
     } catch (err) {
 
       console.error("Login error:", err);
-
       setErrorMsg("Something went wrong.");
       setLoading(false);
 
@@ -144,6 +141,7 @@ export default function LoginInner() {
 
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 border border-[#1a1a1a]">
 
+        {/* TITLE */}
         <div className="text-center space-y-2">
 
           <h1 className="text-3xl font-bold neon-text">
@@ -156,43 +154,46 @@ export default function LoginInner() {
 
         </div>
 
+        {/* SUCCESS */}
         {successMsg && (
-
           <div className="bg-green-900/30 border border-green-600 text-green-300 text-sm p-3 rounded-lg text-center">
             {successMsg}
           </div>
-
         )}
 
+        {/* ERROR */}
         {errorMsg && (
-
           <div className="bg-red-900/30 border border-red-600 text-red-300 text-sm p-3 rounded-lg text-center">
             {errorMsg}
           </div>
-
         )}
 
+        {/* FORM */}
         <div className="space-y-4">
 
+          {/* EMAIL */}
           <input
             type="email"
             placeholder="Email address"
             disabled={loading}
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none !text-white"
+            style={{ WebkitTextFillColor: "#ffffff" }}
           />
 
+          {/* PASSWORD */}
           <div className="relative">
 
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               disabled={loading}
-              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-              className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+              className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none !text-white"
+              style={{ WebkitTextFillColor: "#ffffff" }}
             />
 
             <button
@@ -205,6 +206,7 @@ export default function LoginInner() {
 
           </div>
 
+          {/* BUTTON */}
           <button
             onClick={handleLogin}
             disabled={loading}
@@ -215,29 +217,25 @@ export default function LoginInner() {
 
         </div>
 
+        {/* RESEND */}
         {showResend && (
-
           <button
             onClick={resendConfirmation}
             disabled={resending}
             className="text-xs text-purple-400 hover:underline text-center w-full"
           >
-            {resending
-              ? "Sending..."
-              : "Resend confirmation email"}
+            {resending ? "Sending..." : "Resend confirmation email"}
           </button>
-
         )}
 
+        {/* FOOTER */}
         <div className="text-center text-gray-400 text-sm space-y-2">
 
           <p>
-
             Don’t have an account?{" "}
             <Link href="/signup" className="text-white hover:underline">
               Sign up
             </Link>
-
           </p>
 
           <button

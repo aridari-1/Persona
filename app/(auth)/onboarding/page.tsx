@@ -168,6 +168,8 @@ export default function OnboardingPage() {
 
       <div className="w-full max-w-md space-y-8">
 
+        {/* TITLE */}
+
         <div className="text-center space-y-2">
 
           <h1 className="text-3xl font-bold text-white">
@@ -179,6 +181,8 @@ export default function OnboardingPage() {
           </p>
 
         </div>
+
+        {/* ERROR */}
 
         {errorMsg && (
 
@@ -200,7 +204,8 @@ export default function OnboardingPage() {
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 !text-white"
+            style={{ WebkitTextFillColor: "#ffffff" }}
             placeholder="your_username"
           />
 
@@ -240,7 +245,8 @@ export default function OnboardingPage() {
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 !text-white"
+            style={{ WebkitTextFillColor: "#ffffff" }}
             placeholder="Your name"
           />
 
@@ -259,7 +265,8 @@ export default function OnboardingPage() {
             onChange={(e) => setBio(e.target.value)}
             rows={3}
             maxLength={150}
-            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none !text-white"
+            style={{ WebkitTextFillColor: "#ffffff" }}
             placeholder="Tell people about yourself..."
           />
 
@@ -268,6 +275,8 @@ export default function OnboardingPage() {
           </p>
 
         </div>
+
+        {/* SUBMIT */}
 
         <button
           onClick={handleSubmit}

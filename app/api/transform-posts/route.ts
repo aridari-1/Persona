@@ -191,16 +191,18 @@ Transform this person into a cinematic AI persona.
 Keep facial identity recognizable, but enhance features:
 - sharper jawline
 - cinematic lighting
--improve lighting and contrast
 - professional color grading
 - dramatic shadows
--dont make background too dark or too bright, 
 
 Style: ultra-realistic, high-end photography, magazine quality
 
 Make it feel like a character, not just a photo.
 
 DO NOT make it look like a normal selfie.
+Avoid:
+- dark or moody lighting
+- changing background composition
+
 `.trim();
 
     /* -----------------------------

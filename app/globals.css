@@ -40,13 +40,35 @@ a {
   user-select: none;
 }
 
-/* Prevent iOS zoom on inputs */
+/* ===== INPUT FIX (CRITICAL) ===== */
+
+/* Prevent iOS zoom + FORCE WHITE TEXT */
 input,
 textarea {
   font-size: 16px;
+  color: #ffffff;
+  caret-color: #ffffff;
 }
 
-/* Safe area support */
+/* Fix Chrome / Safari autofill (dark UI bug) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus {
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Placeholder consistency */
+::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ===== SAFE AREA ===== */
+
 .safe-top {
   padding-top: env(safe-area-inset-top);
 }
@@ -55,7 +77,8 @@ textarea {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Subtle transitions */
+/* ===== TRANSITIONS ===== */
+
 .transition-fast {
   transition: all 0.15s ease-in-out;
 }
@@ -64,7 +87,8 @@ textarea {
   transition: all 0.25s ease;
 }
 
-/* iOS momentum scrolling */
+/* ===== SCROLL ===== */
+
 .ios-scroll {
   -webkit-overflow-scrolling: touch;
 }
@@ -114,18 +138,8 @@ textarea {
   animation: slideUp 0.25s ease-out;
 }
 
+/* ===== BODY FIX ===== */
+
 body {
   position: relative;
-}
-/* ===== FIX DARK INPUT AUTOFILL ===== */
-
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-textarea:-webkit-autofill,
-textarea:-webkit-autofill:hover,
-textarea:-webkit-autofill:focus {
-  -webkit-text-fill-color: #ffffff;
-  caret-color: #ffffff;
-  transition: background-color 9999s ease-in-out 0s;
 }

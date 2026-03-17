@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     if (Date.now() - accountCreated < 5 * 60 * 1000) {
 
       return NextResponse.json(
-        { error: "Please wait a few minutes before generating." },
+        { error: "Please wait 5 minutes before generating." },
         { status: 403 }
       );
 

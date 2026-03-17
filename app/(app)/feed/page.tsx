@@ -72,11 +72,9 @@ export default function FeedPage() {
 
     observerRef.current = new IntersectionObserver(
       (entries) => {
-
         if (entries[0].isIntersecting && !loadingMore) {
           loadMorePosts();
         }
-
       },
       { rootMargin: "600px" }
     );
@@ -90,67 +88,12 @@ export default function FeedPage() {
   }, [posts, hasMore]);
 
   /* ------------------------------
-     INITIAL FEED
+     FETCH FEED (MAIN FIX HERE)
   ------------------------------ */
 
-  const fetchInitialFeed = async () => {
+  const fetchFeedPosts = async (userId: string) => {
 
-    setLoading(true);
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData.session?.user;
-
-    if (!user) return;
-
-    setCurrentUserId(user.id);
-
-    /* -------- FETCH STORIES -------- */
-
-    const { data: storiesData } = await supabase
-      .from("stories")
-      .select(`
-        id,
-        user_id,
-        profiles:profiles!stories_user_id_fkey (
-          username,
-          avatar_url
-        )
-      `)
-      .gt("expires_at", new Date().toISOString());
-
-    const { data: views } = await supabase
-      .from("story_views")
-      .select("story_id")
-      .eq("viewer_id", user.id);
-
-    const viewedIds = new Set(views?.map((v) => v.story_id));
-
-    const userStories: Record<string, StoryUser> = {};
-
-    (storiesData || []).forEach((story: any) => {
-
-      const unseen = !viewedIds.has(story.id);
-
-      if (!userStories[story.user_id]) {
-
-        userStories[story.user_id] = {
-          user_id: story.user_id,
-          profiles: story.profiles,
-          unseen,
-        };
-
-      } else if (unseen) {
-
-        userStories[story.user_id].unseen = true;
-
-      }
-
-    });
-
-    setStories(Object.values(userStories));
-
-    /* -------- FETCH POSTS -------- */
-
+    // 1️⃣ Try user_feed (fast system)
     const { data: feedData } = await supabase
       .from("user_feed")
       .select(`
@@ -169,17 +112,74 @@ export default function FeedPage() {
           )
         )
       `)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
 
-    const initialPosts =
+    let result =
       feedData?.map((row: any) => row.posts).filter(Boolean) || [];
+
+    // 2️⃣ FALLBACK if feed is broken (CRITICAL)
+    if (!result.length) {
+
+      const { data: following } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", userId);
+
+      const ids = [
+        userId,
+        ...(following?.map(f => f.following_id) || [])
+      ];
+
+      const { data: postsFallback } = await supabase
+        .from("posts")
+        .select(`
+          id,
+          caption,
+          created_at,
+          like_count,
+          profiles:profiles!posts_user_id_fkey (
+            username,
+            avatar_url
+          ),
+          post_media (
+            output_path
+          )
+        `)
+        .in("user_id", ids)
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
+
+      result = postsFallback || [];
+    }
+
+    return result;
+  };
+
+  /* ------------------------------
+     INITIAL FEED
+  ------------------------------ */
+
+  const fetchInitialFeed = async () => {
+
+    setLoading(true);
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+
+    if (!user) return;
+
+    setCurrentUserId(user.id);
+
+    /* -------- POSTS -------- */
+
+    const initialPosts = await fetchFeedPosts(user.id);
 
     setPosts(initialPosts);
     setHasMore(initialPosts.length === PAGE_SIZE);
 
-    /* -------- FETCH LIKES -------- */
+    /* -------- LIKES -------- */
 
     if (initialPosts.length) {
 
@@ -201,52 +201,48 @@ export default function FeedPage() {
   };
 
   /* ------------------------------
-     LOAD MORE POSTS
+     LOAD MORE (SAFE)
   ------------------------------ */
 
   const loadMorePosts = async () => {
 
-    if (!hasMore || loadingMore) return;
+    if (!hasMore || loadingMore || !posts.length) return;
 
     setLoadingMore(true);
 
     const lastPost = posts[posts.length - 1];
 
     const { data } = await supabase
-      .from("user_feed")
+      .from("posts")
       .select(`
+        id,
+        caption,
         created_at,
-        posts:post_id (
-          id,
-          caption,
-          created_at,
-          like_count,
-          profiles:profiles!posts_user_id_fkey (
-            username,
-            avatar_url
-          ),
-          post_media (
-            output_path
-          )
+        like_count,
+        profiles:profiles!posts_user_id_fkey (
+          username,
+          avatar_url
+        ),
+        post_media (
+          output_path
         )
       `)
-      .eq("user_id", currentUserId)
       .lt("created_at", lastPost.created_at)
       .order("created_at", { ascending: false })
       .limit(PAGE_SIZE);
 
     if (data?.length) {
 
-      const newPosts =
-        data.map((row: any) => row.posts).filter(Boolean) || [];
+      // remove duplicates
+      const existingIds = new Set(posts.map(p => p.id));
 
-      setPosts((prev) => [...prev, ...newPosts]);
+      const newPosts = data.filter(p => !existingIds.has(p.id));
+
+      setPosts(prev => [...prev, ...newPosts]);
       setHasMore(newPosts.length === PAGE_SIZE);
 
     } else {
-
       setHasMore(false);
-
     }
 
     setLoadingMore(false);
@@ -283,84 +279,16 @@ export default function FeedPage() {
   };
 
   if (loading) {
-
     return (
       <div className="h-screen flex items-center justify-center text-gray-500">
         Loading feed...
       </div>
     );
-
   }
 
   return (
 
     <div className="bg-black text-white pb-24">
-
-      {/* STORY VIEWER */}
-
-      {activeStoryUser && (
-        <StoryViewer
-          userId={activeStoryUser}
-          onClose={() => {
-            setActiveStoryUser(null);
-            fetchInitialFeed(); // refresh rings
-          }}
-        />
-      )}
-
-      {/* STORIES */}
-
-      <div className="flex overflow-x-auto space-x-4 px-4 py-4 border-b border-[#1a1a1a]">
-
-        {stories.map((story) => {
-
-          const profile = normalizeProfile(story.profiles);
-
-          const ring = story.unseen
-            ? "bg-gradient-to-tr from-purple-600 to-pink-600"
-            : "bg-gray-700";
-
-          return (
-
-            <div
-              key={story.user_id}
-              onClick={() => router.push(`/stories/${story.user_id}`)}
-              className="flex flex-col items-center space-y-2 cursor-pointer min-w-[70px]"
-            >
-
-              <div className={`w-14 h-14 rounded-full p-[2px] ${ring}`}>
-
-                <div className="w-full h-full rounded-full overflow-hidden bg-black">
-
-                  {profile?.avatar_url && (
-
-                    <Image
-                      src={profile.avatar_url}
-                      alt=""
-                      width={56}
-                      height={56}
-                      className="object-cover"
-                    />
-
-                  )}
-
-                </div>
-
-              </div>
-
-              <span className="text-[11px] text-gray-400 truncate w-16 text-center">
-                {profile?.username || "user"}
-              </span>
-
-            </div>
-
-          );
-
-        })}
-
-      </div>
-
-      {/* POSTS (unchanged) */}
 
       <div className="space-y-10">
 
@@ -378,17 +306,16 @@ export default function FeedPage() {
 
           return (
 
-            <div key={`${post.id}-${index}`} className="space-y-3">
+            <div key={post.id} className="space-y-3">
 
+              {/* HEADER */}
               <div className="flex items-center space-x-3 px-4">
 
                 <div
                   onClick={() => router.push(`/profile/${profile?.username}`)}
                   className="w-8 h-8 rounded-full overflow-hidden bg-[#0f0f0f] cursor-pointer"
                 >
-
                   {profile?.avatar_url && (
-
                     <Image
                       src={profile.avatar_url}
                       alt=""
@@ -396,25 +323,23 @@ export default function FeedPage() {
                       height={32}
                       className="object-cover"
                     />
-
                   )}
-
                 </div>
 
                 <span
                   onClick={() => router.push(`/profile/${profile?.username}`)}
-                  className="text-[13px] font-medium cursor-pointer"
+                  className="text-[13px] font-semibold cursor-pointer"
                 >
                   {profile?.username || "user"}
                 </span>
 
               </div>
 
+              {/* IMAGE */}
               <div
                 onDoubleClick={() => handleDoubleTap(post.id)}
                 onClick={() => router.push(`/post/${post.id}`)}
               >
-
                 <Image
                   src={imageUrl}
                   alt=""
@@ -422,38 +347,36 @@ export default function FeedPage() {
                   height={1024}
                   priority={index === 0}
                   className="w-full object-cover"
-                  sizes="(max-width:768px) 100vw, 600px"
                 />
-
               </div>
 
+              {/* LIKE */}
               <div className="px-4">
-
                 {currentUserId && (
-
                   <LikeButton
                     postId={post.id}
                     initialLiked={hasLiked}
                     initialCount={post.like_count || 0}
                     userId={currentUserId}
                   />
-
                 )}
-
               </div>
 
+              {/* CAPTION FIX */}
               {post.caption && (
 
-                <div className="px-4 text-[14px] text-gray-300">
+                <div className="px-4 text-[14px] leading-relaxed space-y-1">
 
-                  <span
+                  <div
                     onClick={() => router.push(`/profile/${profile?.username}`)}
-                    className="font-medium text-white mr-2 cursor-pointer"
+                    className="font-semibold text-white cursor-pointer"
                   >
                     {profile?.username}
-                  </span>
+                  </div>
 
-                  {post.caption}
+                  <div className="text-gray-300">
+                    {post.caption}
+                  </div>
 
                 </div>
 
@@ -468,20 +391,11 @@ export default function FeedPage() {
       </div>
 
       {hasMore && (
-
-        <div
-          ref={loaderRef}
-          className="h-16 flex items-center justify-center"
-        >
-
+        <div ref={loaderRef} className="h-16 flex items-center justify-center">
           {loadingMore && (
-            <span className="text-gray-500 text-sm">
-              Loading...
-            </span>
+            <span className="text-gray-500 text-sm">Loading...</span>
           )}
-
         </div>
-
       )}
 
     </div>

@@ -99,7 +99,7 @@ export default function LandingPage() {
 
             <div className="relative aspect-[4/5] overflow-hidden rounded-[18px]">
               <Image
-                src="/before-persona.jpg"
+                src="/before-persona.jpeg"
                 alt="Before"
                 fill
                 priority
@@ -116,7 +116,7 @@ export default function LandingPage() {
 
             <div className="relative aspect-[4/5] overflow-hidden rounded-[18px]">
               <Image
-                src="/after-persona.jpg"
+                src="/after-persona.jpeg"
                 alt="After"
                 fill
                 priority

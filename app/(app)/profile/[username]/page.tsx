@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 
-const PAGE_SIZE = 18;
+const PAGE_SIZE = 50;
 
 interface Profile {
   id: string;

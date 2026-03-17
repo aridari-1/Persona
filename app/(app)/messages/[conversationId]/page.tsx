@@ -41,7 +41,6 @@ export default function ChatPage() {
     setUserId(user.id);
 
     await fetchOtherUser(user.id);
-
     await fetchMessages();
 
     const channel = subscribeMessages();
@@ -118,11 +117,9 @@ export default function ChatPage() {
   }
 
   function scrollToBottom() {
-
     bottomRef.current?.scrollIntoView({
       behavior: "smooth",
     });
-
   }
 
   async function sendMessage() {
@@ -148,10 +145,12 @@ export default function ChatPage() {
 
     <div className="flex flex-col h-screen bg-black text-white">
 
+      {/* HEADER */}
       <div className="px-4 py-3 border-b border-[#1a1a1a] text-center text-sm font-semibold">
         Conversation
       </div>
 
+      {/* MESSAGES */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5">
 
         {messages.map((msg) => {
@@ -168,9 +167,7 @@ export default function ChatPage() {
             >
 
               {!isMine && (
-
                 <div className="w-6 h-6 rounded-full overflow-hidden bg-[#111] shrink-0">
-
                   {otherAvatar && (
                     <Image
                       src={otherAvatar}
@@ -181,9 +178,7 @@ export default function ChatPage() {
                       unoptimized
                     />
                   )}
-
                 </div>
-
               )}
 
               <div
@@ -215,6 +210,7 @@ export default function ChatPage() {
 
       </div>
 
+      {/* INPUT */}
       <div className="border-t border-[#1a1a1a] p-4 flex space-x-3">
 
         <input
@@ -222,12 +218,12 @@ export default function ChatPage() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && sendMessage()}
           placeholder="Send a message..."
-          className="flex-1 bg-[#111] text-white placeholder-gray-500 px-4 py-2 rounded-full text-sm outline-none"
+          className="flex-1 bg-[#111] px-4 py-2 rounded-full text-sm outline-none border border-[#222] focus:border-purple-500 transition placeholder-gray-500 !text-white"
         />
 
         <button
           onClick={sendMessage}
-          className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold"
+          className="px-5 py-2 bg-white text-black rounded-full text-sm font-semibold hover:bg-gray-200 transition"
         >
           Send
         </button>

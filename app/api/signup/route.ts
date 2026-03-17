@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -25,6 +24,14 @@ export async function POST(req: Request) {
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: "Invalid email address." },
+        { status: 400 }
+      );
+    }
+
+    /* ✅ GMAIL ONLY CHECK */
+    if (!email.toLowerCase().endsWith("@gmail.com")) {
+      return NextResponse.json(
+        { error: "Please use a Gmail address to register." },
         { status: 400 }
       );
     }

@@ -27,6 +27,11 @@ export default function SignupPage() {
       return;
     }
 
+    if (!email.toLowerCase().endsWith("@gmail.com")) {
+      setErrorMsg("Please use a Gmail address.");
+      return;
+    }
+
     if (password.length < 6) {
       setErrorMsg("Password must contain at least 6 characters.");
       return;
@@ -62,7 +67,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Redirect to login and tell the user to verify email
       router.replace("/login?verify=true");
 
     } catch (err) {
@@ -82,6 +86,7 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md bg-[#111] p-8 rounded-2xl space-y-6 border border-[#1a1a1a]">
 
+        {/* TITLE */}
         <div className="text-center space-y-2">
 
           <h1 className="text-3xl font-bold neon-text">
@@ -94,6 +99,7 @@ export default function SignupPage() {
 
         </div>
 
+        {/* ERROR */}
         {errorMsg && (
 
           <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg text-center">
@@ -102,17 +108,26 @@ export default function SignupPage() {
 
         )}
 
+        {/* FORM */}
         <div className="space-y-4">
 
+          {/* EMAIL */}
           <input
             type="email"
             placeholder="Email address"
             disabled={loading}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none disabled:opacity-50"
+            className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none !text-white"
+            style={{ WebkitTextFillColor: "#ffffff" }}
           />
 
+          {/* Gmail hint */}
+          <p className="text-xs text-purple-400">
+            Use a Gmail address to create your account.
+          </p>
+
+          {/* PASSWORD */}
           <div className="relative">
 
             <input
@@ -122,7 +137,8 @@ export default function SignupPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-              className="w-full p-3 rounded-lg bg-black border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none disabled:opacity-50"
+              className="w-full p-3 rounded-lg bg-[#111] border border-gray-800 text-white placeholder-gray-500 focus:border-purple-500 outline-none !text-white"
+              style={{ WebkitTextFillColor: "#ffffff" }}
             />
 
             <button
@@ -139,6 +155,7 @@ export default function SignupPage() {
             Password should contain at least 6 characters.
           </p>
 
+          {/* CAPTCHA */}
           <div className="flex justify-center pt-2">
 
             <Turnstile
@@ -149,6 +166,7 @@ export default function SignupPage() {
 
           </div>
 
+          {/* BUTTON */}
           <button
             onClick={handleSignup}
             disabled={loading}
@@ -159,6 +177,7 @@ export default function SignupPage() {
 
         </div>
 
+        {/* FOOTER */}
         <div className="text-center text-gray-400 text-sm space-y-2">
 
           <p>
