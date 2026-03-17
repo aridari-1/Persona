@@ -1,25 +1,51 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
+
 import TopBar from "@/components/layout/TopBar";
 import BottomNav from "@/components/layout/BottomNav";
-import SplashScreen from "@/components/SplashScreen";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const mainRef = useRef<HTMLElement | null>(null);
+  const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
+  const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 2500);
+    const checkAccess = async () => {
+      const { data: sessionRes } = await supabase.auth.getSession();
+      const user = sessionRes.session?.user;
 
-    return () => clearTimeout(timer);
-  }, []);
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
 
-  if (loading) {
-    return <SplashScreen />;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.onboarding_completed) {
+        router.replace("/onboarding");
+        return;
+      }
+
+      setAllowed(true);
+    };
+
+    checkAccess();
+  }, [router]);
+
+  if (!allowed) {
+    return (
+      <div className="h-dvh flex items-center justify-center bg-black text-white">
+        Loading...
+      </div>
+    );
   }
 
   return (
