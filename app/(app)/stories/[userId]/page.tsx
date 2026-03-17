@@ -104,7 +104,7 @@ export default function StoryPage() {
     setLoaded(false);
   }, [index]);
 
-  /* ---------------- MARK STORY VIEWED ---------------- */
+  /* ---------------- MARK VIEWED ---------------- */
 
   useEffect(() => {
 
@@ -124,27 +124,25 @@ export default function StoryPage() {
 
     markViewed();
 
-  }, [index]);
+  }, [index, stories]);
 
-  /* ---------------- PRELOAD NEXT STORY ---------------- */
+  /* ---------------- PRELOAD NEXT ---------------- */
 
   useEffect(() => {
 
     const next = stories[index + 1];
-
     if (!next) return;
 
     const nextMedia = next.story_media?.[0];
     if (!nextMedia?.output_path) return;
 
     const img = new Image();
-
     img.src =
       `${supabaseUrl}/storage/v1/object/public/persona-stories/${nextMedia.output_path}`;
 
-  }, [index]);
+  }, [index, stories]);
 
-  /* ---------------- SWIPE GESTURE ---------------- */
+  /* ---------------- TOUCH HANDLING ---------------- */
 
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
@@ -159,11 +157,8 @@ export default function StoryPage() {
 
     if (Math.abs(diff) > SWIPE_THRESHOLD) {
 
-      if (diff > 0) {
-        nextStory();
-      } else {
-        prevStory();
-      }
+      if (diff > 0) nextStory();
+      else prevStory();
 
     }
 
@@ -186,7 +181,7 @@ export default function StoryPage() {
     setIndex(prev => Math.max(0, prev - 1));
   };
 
-  /* ---------------- LOADING ---------------- */
+  /* ---------------- LOADING STATES ---------------- */
 
   if (loading) {
     return (
@@ -216,12 +211,16 @@ export default function StoryPage() {
 
     <div
       className="fixed inset-0 bg-black z-50 flex items-center justify-center"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={(e) => {
+        handleTouchStart(e);
+        setPaused(true);
+      }}
+      onTouchEnd={(e) => {
+        handleTouchEnd(e);
+        setPaused(false);
+      }}
       onMouseDown={() => setPaused(true)}
       onMouseUp={() => setPaused(false)}
-      onTouchStartCapture={() => setPaused(true)}
-      onTouchEndCapture={() => setPaused(false)}
     >
 
       {/* Progress bars */}
@@ -241,12 +240,10 @@ export default function StoryPage() {
               key={i}
               className="h-1 flex-1 bg-white/30 rounded overflow-hidden"
             >
-
               <div
                 className="h-full bg-white transition-all"
                 style={{ width }}
               />
-
             </div>
 
           );
@@ -254,6 +251,14 @@ export default function StoryPage() {
         })}
 
       </div>
+
+      {/* Loader */}
+
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="animate-spin h-8 w-8 border-4 border-white border-t-transparent rounded-full"></div>
+        </div>
+      )}
 
       {/* Image */}
 
@@ -290,4 +295,5 @@ export default function StoryPage() {
     </div>
 
   );
+
 }

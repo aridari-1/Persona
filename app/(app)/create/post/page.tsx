@@ -414,12 +414,26 @@ export default function CreatePage() {
             alt=""
           />
 
+          {/* 🔥 FIXED TEXTAREA */}
           <textarea
             placeholder="Write a caption..."
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            className="w-full bg-black border border-gray-800 rounded-lg p-3 text-white"
             rows={3}
+            className="
+              w-full
+              bg-[#0a0a0a]
+              text-white
+              placeholder-gray-500
+              border border-gray-800
+              rounded-lg
+              p-3
+              outline-none
+              focus:border-purple-500
+              focus:ring-1 focus:ring-purple-500
+              caret-white
+              resize-none
+            "
           />
 
           <div className="flex space-x-4">
