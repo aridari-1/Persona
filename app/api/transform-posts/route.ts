@@ -186,18 +186,21 @@ export async function POST(req: Request) {
     ----------------------------- */
 
     const postPrompt = `
-Improve the quality of this photo.
+Transform this person into a cinematic AI persona.
 
-Enhance lighting, contrast, sharpness,
-and color balance.
+Keep facial identity recognizable, but enhance features:
+- sharper jawline
+- cinematic lighting
+-improve lighting and contrast
+- professional color grading
+- dramatic shadows
+-dont make background too dark or too bright, 
 
-Make the image look like it was taken
-with a high quality camera.
+Style: ultra-realistic, high-end photography, magazine quality
 
-Keep the appearance natural and realistic.
+Make it feel like a character, not just a photo.
 
-Do not create cartoon, anime,
-illustration, or painting styles.
+DO NOT make it look like a normal selfie.
 `.trim();
 
     /* -----------------------------

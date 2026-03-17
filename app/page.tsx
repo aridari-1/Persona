@@ -6,124 +6,134 @@ import Image from "next/image";
 export default function LandingPage() {
   return (
     <main className="relative min-h-screen overflow-hidden bg-black text-white">
-      {/* background glow */}
+
+      {/* SOFT BACKGROUND */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-[-120px] h-[420px] w-[420px] -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
-        <div className="absolute right-[-80px] top-[180px] h-[280px] w-[280px] rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-[-120px] left-[-80px] h-[280px] w-[280px] rounded-full bg-purple-500/10 blur-3xl" />
+        <div className="absolute left-1/2 top-[-100px] h-[360px] w-[360px] -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
+        <div className="absolute right-[-60px] top-[160px] h-[240px] w-[240px] rounded-full bg-blue-500/10 blur-3xl" />
       </div>
 
-      {/* navbar */}
+      {/* NAVBAR */}
       <header className="relative z-10">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-5">
           <Link
             href="/"
-            className="text-[15px] font-semibold tracking-[0.28em] text-white"
+            className="text-[13px] font-semibold tracking-[0.35em] text-white/90"
           >
             PERSONA
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="rounded-full px-4 py-2 text-sm text-white/70 transition hover:text-white"
+              className="px-3 py-2 text-sm text-white/60 transition hover:text-white"
             >
               Login
             </Link>
 
             <Link
               href="/signup"
-              className="rounded-full bg-white px-5 py-2 text-sm font-medium text-black transition hover:bg-white/90"
+              className="rounded-full bg-white px-4 py-2 text-sm font-medium text-black transition active:scale-[0.98]"
             >
-              Get Started
+              Start
             </Link>
           </div>
         </nav>
       </header>
 
-      {/* hero */}
-      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-88px)] max-w-6xl flex-col items-center justify-center px-6 pb-16 pt-8 text-center">
-        <div className="max-w-3xl">
-          <p className="mb-4 inline-flex rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-xs text-white/60">
-            AI social identity
+      {/* HERO */}
+      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-70px)] max-w-6xl flex-col items-center justify-center px-5 pb-12 pt-4 text-center">
+
+        <div className="max-w-2xl">
+
+          {/* SMALL TAG */}
+          <p className="mb-5 text-xs text-white/40">
+            AI identity
           </p>
 
-          <h1 className="text-5xl font-semibold leading-[0.95] tracking-tight md:text-7xl">
-            Upload your photo.
-            <span className="mt-2 block bg-gradient-to-r from-fuchsia-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+          {/* HEADLINE */}
+          <h1 className="text-[38px] font-semibold leading-[1.05] tracking-tight sm:text-6xl">
+
+            Upload a photo.
+
+            <span className="mt-2 block bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
               Become your Persona.
             </span>
+
           </h1>
 
-          <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-white/65 md:text-lg">
-            Create a cinematic AI version of yourself and share it instantly.
+          {/* SUBTEXT */}
+          <p className="mx-auto mt-5 max-w-md text-[15px] text-white/55">
+            One photo. A new identity.
           </p>
 
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          {/* CTA */}
+          <div className="mt-7 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+
             <Link
               href="/signup"
-              className="inline-flex min-w-[180px] items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-black transition hover:bg-white/90"
+              className="w-full sm:w-auto rounded-full bg-white px-6 py-3 text-sm font-semibold text-black transition active:scale-[0.97]"
             >
               Create Persona
             </Link>
 
             <Link
               href="/login"
-              className="inline-flex min-w-[140px] items-center justify-center rounded-full border border-white/12 bg-white/[0.02] px-7 py-3 text-sm text-white/80 transition hover:bg-white/[0.06] hover:text-white"
+              className="w-full sm:w-auto rounded-full border border-white/10 bg-white/[0.03] px-6 py-3 text-sm text-white/80 transition active:scale-[0.97]"
             >
               Login
             </Link>
+
           </div>
+
         </div>
 
-        {/* before / after visual */}
-        <div className="mt-16 grid w-full max-w-5xl gap-5 md:grid-cols-2">
-          {/* before */}
-          <div className="group rounded-[28px] border border-white/10 bg-white/[0.03] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-sm">
-            <div className="mb-3 flex items-center justify-between px-2">
-              <span className="text-sm font-medium text-white/85">Before</span>
-              <span className="rounded-full bg-white/8 px-3 py-1 text-[11px] text-white/50">
-                Original
-              </span>
+        {/* BEFORE / AFTER */}
+        <div className="mt-14 grid w-full max-w-4xl gap-4 sm:grid-cols-2">
+
+          {/* BEFORE */}
+          <div className="rounded-[24px] border border-white/10 bg-[#0b0b0d] p-2">
+            <div className="mb-2 px-2 text-xs text-white/50">
+              Before
             </div>
 
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#0f0f12]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[18px]">
               <Image
                 src="/before-persona.jpg"
-                alt="Original portrait before AI transformation"
+                alt="Before"
                 fill
                 priority
-                className="object-cover transition duration-500 group-hover:scale-[1.02]"
+                className="object-cover"
               />
             </div>
           </div>
 
-          {/* after */}
-          <div className="group rounded-[28px] border border-white/10 bg-white/[0.03] p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] backdrop-blur-sm">
-            <div className="mb-3 flex items-center justify-between px-2">
-              <span className="text-sm font-medium text-white/85">After</span>
-              <span className="rounded-full bg-gradient-to-r from-fuchsia-500/20 to-blue-500/20 px-3 py-1 text-[11px] text-white/70">
-                AI Persona
-              </span>
+          {/* AFTER */}
+          <div className="rounded-[24px] border border-white/10 bg-[#0b0b0d] p-2">
+            <div className="mb-2 px-2 text-xs text-white/50">
+              After
             </div>
 
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[22px] bg-[#0f0f12]">
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[18px]">
               <Image
                 src="/after-persona.jpg"
-                alt="AI transformed portrait"
+                alt="After"
                 fill
                 priority
-                className="object-cover transition duration-500 group-hover:scale-[1.02]"
+                className="object-cover"
               />
 
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
             </div>
           </div>
+
         </div>
 
-        <p className="mt-6 text-sm text-white/40">
-          Simple photo in. Cinematic Persona out.
+        {/* MICRO COPY */}
+        <p className="mt-5 text-xs text-white/30">
+          Photo → Persona
         </p>
+
       </section>
     </main>
   );
