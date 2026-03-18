@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import LikeButton from "@/components/posts/LikeButton";
-import StoryViewer from "@/components/stories/StoryViewer";
 import Image from "next/image";
 
 const PAGE_SIZE = 15;
@@ -42,8 +41,6 @@ export default function FeedPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   const [hasMore, setHasMore] = useState(true);
-
-  const [activeStoryUser, setActiveStoryUser] = useState<string | null>(null);
 
   const loaderRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -88,12 +85,11 @@ export default function FeedPage() {
   }, [posts, hasMore]);
 
   /* ------------------------------
-     FETCH FEED (MAIN FIX HERE)
+     FETCH POSTS (SMART)
   ------------------------------ */
 
   const fetchFeedPosts = async (userId: string) => {
 
-    // 1️⃣ Try user_feed (fast system)
     const { data: feedData } = await supabase
       .from("user_feed")
       .select(`
@@ -119,7 +115,7 @@ export default function FeedPage() {
     let result =
       feedData?.map((row: any) => row.posts).filter(Boolean) || [];
 
-    // 2️⃣ FALLBACK if feed is broken (CRITICAL)
+    // fallback (VERY IMPORTANT)
     if (!result.length) {
 
       const { data: following } = await supabase
@@ -172,6 +168,47 @@ export default function FeedPage() {
 
     setCurrentUserId(user.id);
 
+    /* -------- STORIES -------- */
+
+    const { data: storiesData } = await supabase
+      .from("stories")
+      .select(`
+        id,
+        user_id,
+        profiles:profiles!stories_user_id_fkey (
+          username,
+          avatar_url
+        )
+      `)
+      .gt("expires_at", new Date().toISOString());
+
+    const { data: views } = await supabase
+      .from("story_views")
+      .select("story_id")
+      .eq("viewer_id", user.id);
+
+    const viewedIds = new Set(views?.map(v => v.story_id));
+
+    const userStories: Record<string, StoryUser> = {};
+
+    (storiesData || []).forEach((story: any) => {
+
+      const unseen = !viewedIds.has(story.id);
+
+      if (!userStories[story.user_id]) {
+        userStories[story.user_id] = {
+          user_id: story.user_id,
+          profiles: story.profiles,
+          unseen,
+        };
+      } else if (unseen) {
+        userStories[story.user_id].unseen = true;
+      }
+
+    });
+
+    setStories(Object.values(userStories));
+
     /* -------- POSTS -------- */
 
     const initialPosts = await fetchFeedPosts(user.id);
@@ -201,7 +238,7 @@ export default function FeedPage() {
   };
 
   /* ------------------------------
-     LOAD MORE (SAFE)
+     LOAD MORE
   ------------------------------ */
 
   const loadMorePosts = async () => {
@@ -233,9 +270,7 @@ export default function FeedPage() {
 
     if (data?.length) {
 
-      // remove duplicates
       const existingIds = new Set(posts.map(p => p.id));
-
       const newPosts = data.filter(p => !existingIds.has(p.id));
 
       setPosts(prev => [...prev, ...newPosts]);
@@ -249,14 +284,14 @@ export default function FeedPage() {
   };
 
   /* ------------------------------
-     DOUBLE TAP LIKE
+     LIKE
   ------------------------------ */
 
   const handleDoubleTap = (postId: string) => {
 
     if (!currentUserId) return;
 
-    setUserLikes((prev) => {
+    setUserLikes(prev => {
 
       const updated = new Set(prev);
 
@@ -289,6 +324,58 @@ export default function FeedPage() {
   return (
 
     <div className="bg-black text-white pb-24">
+
+      {/* STORIES */}
+
+      <div className="flex overflow-x-auto space-x-4 px-4 py-4 border-b border-[#1a1a1a]">
+
+        {stories.map((story) => {
+
+          const profile = normalizeProfile(story.profiles);
+
+          const ring = story.unseen
+            ? "bg-gradient-to-tr from-purple-500 via-pink-500 to-orange-400"
+            : "bg-gray-700";
+
+          return (
+
+            <div
+              key={story.user_id}
+              onClick={() => router.push(`/stories/${story.user_id}`)}
+              className="flex flex-col items-center space-y-2 cursor-pointer min-w-[70px]"
+            >
+
+              <div className={`w-14 h-14 rounded-full p-[2px] ${ring}`}>
+
+                <div className="w-full h-full rounded-full overflow-hidden bg-black">
+
+                  {profile?.avatar_url && (
+                    <Image
+                      src={profile.avatar_url}
+                      alt=""
+                      width={56}
+                      height={56}
+                      className="object-cover"
+                    />
+                  )}
+
+                </div>
+
+              </div>
+
+              <span className="text-[11px] text-gray-400 truncate w-16 text-center">
+                {profile?.username || "user"}
+              </span>
+
+            </div>
+
+          );
+
+        })}
+
+      </div>
+
+      {/* POSTS */}
 
       <div className="space-y-10">
 
@@ -362,9 +449,8 @@ export default function FeedPage() {
                 )}
               </div>
 
-              {/* CAPTION FIX */}
+              {/* CAPTION */}
               {post.caption && (
-
                 <div className="px-4 text-[14px] leading-relaxed space-y-1">
 
                   <div
@@ -379,7 +465,6 @@ export default function FeedPage() {
                   </div>
 
                 </div>
-
               )}
 
             </div>

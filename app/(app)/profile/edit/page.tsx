@@ -173,10 +173,8 @@ export default function EditProfilePage() {
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
-
       reader.onload = () => resolve(String(reader.result));
       reader.onerror = reject;
-
       reader.readAsDataURL(file);
     });
 
@@ -327,12 +325,15 @@ export default function EditProfilePage() {
           )}
         </div>
 
+        {/* 🔥 FIXED FILE INPUT */}
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
           onChange={(e) => {
             const file = e.target.files?.[0] ?? null;
             setAvatarFile(file);
+
+            e.currentTarget.value = ""; // 🔥 critical fix
 
             if (previewObjectUrlRef.current) {
               URL.revokeObjectURL(previewObjectUrlRef.current);
@@ -366,34 +367,32 @@ export default function EditProfilePage() {
         </p>
       </div>
 
+      {/* 🔥 FORCE DARK INPUTS */}
       <div>
         <label className="text-sm text-gray-400">Username</label>
         <input
-          value={username}
+          value={username || ""}
           onChange={(e) => setUsername(e.target.value)}
-          className="w-full bg-black border border-gray-800 rounded-lg p-3 mt-1"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
+          className="w-full !bg-black !text-white border border-gray-800 rounded-lg p-3 mt-1 caret-white"
         />
       </div>
 
       <div>
         <label className="text-sm text-gray-400">Display Name</label>
         <input
-          value={displayName}
+          value={displayName || ""}
           onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full bg-black border border-gray-800 rounded-lg p-3 mt-1"
+          className="w-full !bg-black !text-white border border-gray-800 rounded-lg p-3 mt-1 caret-white"
         />
       </div>
 
       <div>
         <label className="text-sm text-gray-400">Bio</label>
         <textarea
-          value={bio}
+          value={bio || ""}
           onChange={(e) => setBio(e.target.value)}
           rows={4}
-          className="w-full bg-black border border-gray-800 rounded-lg p-3 mt-1"
+          className="w-full !bg-black !text-white border border-gray-800 rounded-lg p-3 mt-1 caret-white"
         />
       </div>
 

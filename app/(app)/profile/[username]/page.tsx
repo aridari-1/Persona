@@ -299,14 +299,16 @@ export default function ProfilePage() {
 
             <Image
               src={
-                profile.avatar_url ||
-                `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`
+                profile.avatar_url
+                  ? `${profile.avatar_url}?v=${Date.now()}`
+                  : `https://api.dicebear.com/7.x/initials/svg?seed=${profile.username}`
               }
               alt="avatar"
               width={96}
               height={96}
               className="object-cover w-full h-full"
               priority
+              
             />
 
           </div>

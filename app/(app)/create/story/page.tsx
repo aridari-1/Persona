@@ -15,6 +15,7 @@ export default function CreateStoryPage() {
   const router = useRouter();
 
   const [file, setFile] = useState<File | null>(null);
+  const [caption, setCaption] = useState("");
 
   const [state, setState] = useState<StoryState>("idle");
 
@@ -26,7 +27,9 @@ export default function CreateStoryPage() {
 
   const localPreviewRef = useRef<string | null>(null);
 
-  /* ---------------- FETCH USAGE ---------------- */
+  /* ------------------------------
+     FETCH REMAINING USAGE
+  ------------------------------ */
 
   const fetchRemaining = async () => {
 
@@ -36,7 +39,9 @@ export default function CreateStoryPage() {
     if (!token) return;
 
     const res = await fetch("/api/usage", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
 
     const result = await res.json();
@@ -51,7 +56,9 @@ export default function CreateStoryPage() {
     fetchRemaining();
   }, []);
 
-  /* ---------------- RESTORE JOB ---------------- */
+  /* ------------------------------
+     RESTORE GENERATION JOB
+  ------------------------------ */
 
   useEffect(() => {
 
@@ -112,7 +119,9 @@ export default function CreateStoryPage() {
 
   }, []);
 
-  /* ---------------- REALTIME ---------------- */
+  /* ------------------------------
+     REALTIME JOB LISTENER
+  ------------------------------ */
 
   useEffect(() => {
 
@@ -179,19 +188,41 @@ export default function CreateStoryPage() {
 
   }, [jobId]);
 
-  /* ---------------- CLEANUP ---------------- */
+  /* ------------------------------
+     CLEANUP PREVIEW URL
+  ------------------------------ */
 
   useEffect(() => {
 
     return () => {
+
       if (localPreviewRef.current) {
         URL.revokeObjectURL(localPreviewRef.current);
       }
+
     };
 
   }, []);
 
-  /* ---------------- TRANSFORM ---------------- */
+  /* ------------------------------
+     FILE TO DATA URL
+  ------------------------------ */
+
+  const fileToDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+
+      const reader = new FileReader();
+
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+
+      reader.readAsDataURL(file);
+
+    });
+
+  /* ------------------------------
+     TRANSFORM STORY
+  ------------------------------ */
 
   const handleTransform = async () => {
 
@@ -209,13 +240,7 @@ export default function CreateStoryPage() {
 
     try {
 
-      const reader = new FileReader();
-
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      const dataUrl = await fileToDataUrl(file);
 
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
@@ -227,7 +252,9 @@ export default function CreateStoryPage() {
 
       const tokenRes = await fetch("/api/request-generation", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       const tokenData = await tokenRes.json();
@@ -239,6 +266,7 @@ export default function CreateStoryPage() {
         }
 
         alert(tokenData.error || "Generation blocked");
+
         setState("idle");
         return;
 
@@ -259,9 +287,13 @@ export default function CreateStoryPage() {
       const result = await res.json();
 
       if (!res.ok) {
+
         setState("idle");
+
         alert(result.error || "AI transformation failed");
+
         return;
+
       }
 
       setJobId(result.job_id);
@@ -273,14 +305,18 @@ export default function CreateStoryPage() {
     } catch (err) {
 
       console.error(err);
+
       alert("Unexpected error");
+
       setState("idle");
 
     }
 
   };
 
-  /* ---------------- PUBLISH ---------------- */
+  /* ------------------------------
+     PUBLISH STORY
+  ------------------------------ */
 
   const handlePublish = async () => {
 
@@ -307,6 +343,7 @@ export default function CreateStoryPage() {
         body: JSON.stringify({
           output_url: previewUrl,
           output_path: outputPath,
+          caption,
           visibility: "public",
         }),
       });
@@ -314,9 +351,12 @@ export default function CreateStoryPage() {
       const result = await res.json();
 
       if (!res.ok) {
+
         alert(result.error || "Publish failed");
+
         setState("preview");
         return;
+
       }
 
       router.push("/feed");
@@ -324,33 +364,47 @@ export default function CreateStoryPage() {
     } catch (err) {
 
       console.error(err);
+
       alert("Publish error");
+
       setState("preview");
 
     }
 
   };
 
-  /* ---------------- UI ---------------- */
+  /* ------------------------------
+     UI
+  ------------------------------ */
 
   return (
 
     <div className="pb-24 px-4 max-w-xl mx-auto space-y-6">
 
-      <h1 className="text-2xl font-bold">Create Story</h1>
+      <h1 className="text-2xl font-bold">
+        Create Story
+      </h1>
 
       {remaining !== null && (
+
         <div className="text-sm">
+
           {remaining > 0 ? (
+
             <span className="text-gray-400">
               {remaining} generation{remaining !== 1 && "s"} remaining today
             </span>
+
           ) : (
+
             <span className="text-red-500">
               Daily limit reached (2 per day)
             </span>
+
           )}
+
         </div>
+
       )}
 
       {state === "idle" && (
@@ -406,6 +460,25 @@ export default function CreateStoryPage() {
 
       )}
 
+      {state === "transforming" && (
+
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
+          <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
+
+          <p className="text-gray-400 text-center">
+            Creating your AI story...
+          </p>
+
+          <p className="text-xs text-gray-500 text-center max-w-xs">
+            This usually takes few seconds. 
+            You can navigate the app and come back later while we finish your transformation.
+          </p>
+
+        </div>
+
+      )}
+
       {state === "preview" && previewUrl && (
 
         <div className="space-y-4">
@@ -414,6 +487,8 @@ export default function CreateStoryPage() {
 
             <img
               src={previewUrl}
+              loading="lazy"
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
               alt=""
             />
@@ -442,6 +517,20 @@ export default function CreateStoryPage() {
             </button>
 
           </div>
+
+        </div>
+
+      )}
+
+      {state === "publishing" && (
+
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+
+          <div className="animate-spin h-10 w-10 border-4 border-white border-t-transparent rounded-full"></div>
+
+          <p className="text-gray-400">
+            Publishing...
+          </p>
 
         </div>
 
