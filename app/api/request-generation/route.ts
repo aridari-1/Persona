@@ -89,20 +89,7 @@ export async function POST(req: Request) {
 
     }
 
-    /* -----------------------------
-       ACCOUNT AGE CHECK
-    ----------------------------- */
-
-    const accountCreated = new Date(user.created_at).getTime();
-
-    if (Date.now() - accountCreated < 5 * 60 * 1000) {
-
-      return NextResponse.json(
-        { error: "Please wait 5 minutes before generating." },
-        { status: 403 }
-      );
-
-    }
+    
 
     /* -----------------------------
        ACTIVE GENERATION PROTECTION
