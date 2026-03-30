@@ -27,10 +27,15 @@ export default function SignupPage() {
       return;
     }
 
-    if (!email.toLowerCase().endsWith("@gmail.com")) {
-      setErrorMsg("Please use a Gmail address.");
-      return;
-    }
+    const lowerEmail = email.toLowerCase();
+
+if (
+  !lowerEmail.endsWith("@gmail.com") &&
+  !lowerEmail.endsWith(".edu")
+) {
+  setErrorMsg("Please use a Gmail or school email address.");
+  return;
+}
 
     if (password.length < 6) {
       setErrorMsg("Password must contain at least 6 characters.");
@@ -124,8 +129,8 @@ export default function SignupPage() {
 
           {/* Gmail hint */}
           <p className="text-xs text-purple-400">
-            Use a Gmail address to create your account.
-          </p>
+  Use a Gmail or school (.edu) email to create your account.
+</p>
 
           {/* PASSWORD */}
           <div className="relative">

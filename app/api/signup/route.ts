@@ -28,13 +28,18 @@ export async function POST(req: Request) {
       );
     }
 
-    /* ✅ GMAIL ONLY CHECK */
-    if (!email.toLowerCase().endsWith("@gmail.com")) {
-      return NextResponse.json(
-        { error: "Please use a Gmail address to register." },
-        { status: 400 }
-      );
-    }
+    /* ✅ GMAIL and edu ONLY CHECK */
+    const lowerEmail = email.toLowerCase();
+
+if (
+  !lowerEmail.endsWith("@gmail.com") &&
+  !lowerEmail.endsWith(".edu")
+) {
+  return NextResponse.json(
+    { error: "Please use a Gmail or school email to register." },
+    { status: 400 }
+  );
+}
 
     /* -----------------------------
        PASSWORD RULE
